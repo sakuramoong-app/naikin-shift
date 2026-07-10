@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🌸 サクラシフト 内勤</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg1:#fff5f8; --bg2:#fff9f0;
+  --card:#ffffff;
+  --ink:#5c4a55;
+  --ink-soft:#9c8a95;
+  --sakura:#ff8fab;
+  --sakura-deep:#e5638c;
+  --mint:#3ec9a7;
+  --mint-soft:#e6faf4;
+  --line:#f6e3ea;
+  --shadow:0 6px 24px rgba(229,99,140,.10);
+  --radius:22px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{
+  font-family:'M PLUS Rounded 1c','Hiragino Maru Gothic ProN',sans-serif;
+  background:linear-gradient(160deg,var(--bg1) 0%,var(--bg2) 60%,#f4f9ff 100%);
+  min-height:100vh;
+  color:var(--ink);
+  padding:14px;
+}
+.wrap{max-width:1180px;margin:0 auto;}
+
+/* ===== header ===== */
+.app-header{
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:10px;margin-bottom:14px;padding:4px 6px;
+}
+.app-title{
+  font-size:22px;font-weight:800;letter-spacing:.04em;
+  display:flex;align-items:center;gap:8px;color:var(--sakura-deep);
+}
+.app-title .petal{font-size:24px;animation:sway 3.2s ease-in-out infinite;}
+@keyframes sway{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(10deg)}}
+@media (prefers-reduced-motion: reduce){.app-title .petal{animation:none}}
+.header-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.sync-badge{
+  font-size:11px;font-weight:700;padding:4px 12px;border-radius:999px;
+  background:#fff;border:1.5px solid var(--line);color:var(--ink-soft);
+}
+.sync-badge.ok{color:var(--mint);border-color:#c9f0e4;background:var(--mint-soft);}
+.sync-badge.err{color:#e05c7a;border-color:#ffd3de;background:#fff0f4;}
+
+/* ===== buttons ===== */
+.btn{
+  font-family:inherit;font-weight:700;font-size:13px;
+  border:none;border-radius:999px;padding:9px 16px;cursor:pointer;
+  transition:transform .12s ease, box-shadow .12s ease, filter .12s;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.btn:hover{transform:translateY(-1px);filter:brightness(1.03);}
+.btn:active{transform:translateY(0);}
+.btn:focus-visible{outline:3px solid #ffc7d6;outline-offset:2px;}
+.btn-ghost{background:#fff;border:2px solid var(--line);color:var(--ink);}
+.btn-primary{background:linear-gradient(135deg,#ff9fb8,#e5638c);color:#fff;box-shadow:0 4px 14px rgba(229,99,140,.35);}
+.btn-mint{background:linear-gradient(135deg,#5fdcbb,#2eb896);color:#fff;box-shadow:0 4px 14px rgba(46,184,150,.3);}
+.btn-lock-all{background:#fff;border:2px solid #e8def5;color:#7b61b8;}
+.btn-lock-all.on{background:linear-gradient(135deg,#a98ee0,#7b61b8);color:#fff;border-color:transparent;box-shadow:0 4px 14px rgba(123,97,184,.35);}
+
+/* ===== cards ===== */
+.card{
+  background:var(--card);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:18px;margin-bottom:16px;
+  border:1px solid #ffffffcc;
+}
+.card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;}
+.card-title{font-size:16px;font-weight:800;display:flex;align-items:center;gap:8px;}
+.card-title .icon{
+  width:32px;height:32px;border-radius:10px;display:grid;place-items:center;font-size:17px;
+  background:linear-gradient(135deg,#ffe3ec,#ffd1e0);
+}
+.week-range{font-size:13px;color:var(--ink-soft);font-weight:700;}
+
+/* ===== week table ===== */
+.week-scroll{overflow-x:auto;border-radius:14px;}
+table.week{
+  width:100%;border-collapse:separate;border-spacing:0;min-width:640px;
+  font-size:13px;
+}
+table.week th{
+  background:linear-gradient(135deg,#4a3d5c,#5c4a6e);
+  color:#fff;font-weight:700;padding:10px 6px;text-align:center;white-space:nowrap;
+}
+table.week th:first-child{border-radius:12px 0 0 0;}
+table.week th:last-child{border-radius:0 12px 0 0;}
+table.week th.sun{color:#ffb3c1;}
+table.week th.sat{color:#a5d8ff;}
+table.week th.today-col{background:linear-gradient(135deg,#2eb896,#3ec9a7);}
+table.week td{
+  padding:9px 6px;text-align:center;border-bottom:1.5px solid var(--line);
+  white-space:nowrap;font-weight:700;
+}
+table.week td.name{font-weight:800;}
+table.week td.today-col{background:var(--mint-soft);}
+table.week tr:last-child td:first-child{border-radius:0 0 0 12px;}
+table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
+.week-chip{
+  display:inline-block;padding:3px 10px;border-radius:999px;font-size:12.5px;font-weight:800;
+}
+.week-chip.exc{box-shadow:0 2px 8px rgba(255,145,77,.35);}
+.dash{color:#d9c9d1;}
+
+/* ===== toolbar ===== */
+.toolbar{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;
+}
+.month-nav{display:flex;align-items:center;gap:6px;margin-right:auto;}
+.month-label{font-size:20px;font-weight:800;padding:0 6px;letter-spacing:.03em;}
+.nav-btn{
+  width:38px;height:38px;border-radius:12px;border:2px solid var(--line);background:#fff;
+  font-size:15px;cursor:pointer;color:var(--sakura-deep);font-weight:800;
+  transition:transform .12s;
+}
+.nav-btn:hover{transform:scale(1.08);}
+.staff-btn{
+  font-family:inherit;font-weight:800;font-size:13px;padding:7px 14px;border-radius:999px;
+  border:2px solid;background:#fff;cursor:pointer;display:inline-flex;align-items:center;gap:5px;
+  transition:transform .12s, box-shadow .12s;
+}
+.staff-btn:hover{transform:translateY(-1px);box-shadow:0 4px 10px rgba(0,0,0,.08);}
+
+/* ===== calendar ===== */
+.cal-grid{
+  display:grid;grid-template-columns:repeat(7,1fr);gap:7px;
+}
+.cal-dow{
+  text-align:center;font-weight:800;font-size:13px;padding:6px 0;color:var(--ink-soft);
+}
+.cal-dow.sun{color:#ff7d99;}
+.cal-dow.sat{color:#6aa9e8;}
+.cal-cell{
+  background:#fff;border-radius:16px;min-height:112px;padding:7px;
+  border:1.5px solid var(--line);
+  transition:box-shadow .15s, border-color .15s;
+  position:relative;display:flex;flex-direction:column;gap:4px;
+}
+.cal-cell.empty{background:transparent;border-color:transparent;}
+.cal-cell.clickable{cursor:pointer;}
+.cal-cell.clickable:hover{border-color:#ffb8cb;box-shadow:0 4px 14px rgba(229,99,140,.14);}
+.cal-cell.today{
+  border:2.5px solid var(--mint);
+  box-shadow:0 0 0 4px #d8f5ec, var(--shadow);
+}
+.cal-cell.holiday, .cal-cell.sun-cell{background:#fff8f9;}
+.date-num{font-size:13.5px;font-weight:800;line-height:1;display:flex;align-items:center;gap:4px;}
+.date-num .holiday-tag{font-size:9.5px;background:#ffb3c1;color:#fff;border-radius:6px;padding:1.5px 5px;}
+.cal-cell.sun-cell .date-num, .cal-cell.holiday .date-num{color:#ff7d99;}
+.cal-cell.sat-cell .date-num{color:#6aa9e8;}
+.cal-cell.today .date-num{color:var(--mint);}
+
+/* shift chips in calendar */
+.chip{
+  border-radius:10px;padding:3.5px 7px;font-size:11.5px;font-weight:800;
+  display:flex;align-items:center;gap:4px;line-height:1.25;
+  border:1.5px solid transparent;
+  user-select:none;
+}
+.chip .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.chip .lock{
+  font-size:12px;cursor:pointer;flex:none;border-radius:6px;padding:0 2px;
+  transition:transform .12s;filter:grayscale(0);
+}
+.chip .lock:hover{transform:scale(1.25);}
+.chip .lock.open{opacity:.55;}
+.chip.editable{cursor:pointer;}
+.chip.editable:hover{filter:brightness(.97);}
+.chip.exc{
+  border-style:dashed;
+  box-shadow:0 2px 8px rgba(255,140,66,.25);
+}
+.chip.exc .t::after{content:"⭐";font-size:9px;margin-left:3px;}
+
+/* ===== modal ===== */
+.modal-bg{
+  position:fixed;inset:0;background:rgba(92,74,85,.35);backdrop-filter:blur(3px);
+  display:none;place-items:center;z-index:50;padding:16px;
+}
+.modal-bg.show{display:grid;}
+.modal{
+  background:#fff;border-radius:24px;padding:22px;width:100%;max-width:420px;
+  box-shadow:0 20px 60px rgba(92,74,85,.3);
+  animation:pop .18s ease;
+  max-height:88vh;overflow-y:auto;
+}
+@keyframes pop{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+.modal h3{font-size:17px;font-weight:800;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.field{margin-bottom:12px;}
+.field label{display:block;font-size:12px;font-weight:800;color:var(--ink-soft);margin-bottom:5px;}
+.field input[type=text], .field select{
+  width:100%;font-family:inherit;font-size:15px;font-weight:700;padding:10px 14px;
+  border:2px solid var(--line);border-radius:14px;color:var(--ink);background:#fffafb;
+}
+.field input:focus, .field select:focus{outline:none;border-color:var(--sakura);}
+.preset-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px;}
+.preset{
+  font-family:inherit;font-size:12px;font-weight:800;padding:5px 11px;border-radius:999px;
+  border:1.5px solid #ffd3de;background:#fff5f8;color:var(--sakura-deep);cursor:pointer;
+}
+.preset:hover{background:#ffe3ec;}
+.modal-actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;}
+.modal-actions .btn{flex:1;justify-content:center;}
+.btn-danger{background:#fff;border:2px solid #ffd3de;color:#e05c7a;}
+.tmpl-grid{display:grid;grid-template-columns:44px 1fr;gap:7px;align-items:center;margin-bottom:4px;}
+.tmpl-dow{font-weight:800;font-size:13px;text-align:center;padding:6px 0;border-radius:10px;background:#faf5f7;}
+.tmpl-dow.sun{color:#ff7d99;background:#fff0f4;}
+.tmpl-dow.sat{color:#6aa9e8;background:#f0f7ff;}
+.tmpl-grid input{
+  font-family:inherit;font-size:14px;font-weight:700;padding:8px 12px;
+  border:2px solid var(--line);border-radius:12px;color:var(--ink);width:100%;background:#fffafb;
+}
+.tmpl-grid input:focus{outline:none;border-color:var(--sakura);}
+.hint{font-size:11.5px;color:var(--ink-soft);margin-top:8px;line-height:1.6;}
+
+/* toast */
+.toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);
+  background:#5c4a55;color:#fff;font-weight:700;font-size:13px;
+  padding:11px 22px;border-radius:999px;box-shadow:0 8px 24px rgba(0,0,0,.25);
+  transition:transform .25s ease;z-index:99;pointer-events:none;white-space:nowrap;
+}
+.toast.show{transform:translateX(-50%) translateY(0);}
+
+/* legend */
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-soft);font-weight:700;margin-top:10px;padding:0 4px;}
+.legend span{display:inline-flex;align-items:center;gap:5px;}
+
+/* ===== mobile ===== */
+@media (max-width:700px){
+  body{padding:8px;}
+  .card{padding:12px;border-radius:18px;}
+  .cal-grid{gap:3.5px;}
+  .cal-cell{min-height:78px;padding:4px;border-radius:11px;gap:2.5px;}
+  .chip{font-size:9.5px;padding:2.5px 4px;border-radius:7px;gap:2px;}
+  .chip .lock{font-size:10px;}
+  .date-num{font-size:11.5px;}
+  .month-label{font-size:17px;}
+  .app-title{font-size:18px;}
+  .toolbar{gap:6px;}
+  .btn, .staff-btn{font-size:12px;padding:7px 12px;}
+}
+
+/* ===== print ===== */
+@media print{
+  body{background:#fff;padding:0;}
+  .toolbar, .header-right, .legend, .chip .lock{display:none !important;}
+  .card{box-shadow:none;border:1px solid #ddd;}
+  .cal-cell{min-height:90px;}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="app-header">
+    <div class="app-title"><span class="petal">🌸</span>サクラシフト <span style="font-size:13px;background:#ffe3ec;color:var(--sakura-deep);padding:3px 10px;border-radius:999px;">内勤</span></div>
+    <div class="header-right">
+      <span class="sync-badge" id="syncBadge">読み込み中…</span>
+      <button class="btn btn-lock-all" id="globalLockBtn" onclick="toggleGlobalLock()">🔒 全体ロック</button>
+      <button class="btn btn-ghost" onclick="window.print()">🖨 印刷</button>
+    </div>
+  </header>
+
+  <!-- 今週のシフト -->
+  <section class="card">
+    <div class="card-head">
+      <div class="card-title"><span class="icon">📅</span>今週のシフト</div>
+      <div class="week-range" id="weekRange"></div>
+    </div>
+    <div class="week-scroll"><table class="week" id="weekTable"></table></div>
+  </section>
+
+  <!-- ツールバー -->
+  <div class="toolbar">
+    <div class="month-nav">
+      <button class="nav-btn" onclick="moveMonth(-1)" aria-label="前月">◀</button>
+      <span class="month-label" id="monthLabel"></span>
+      <button class="nav-btn" onclick="moveMonth(1)" aria-label="翌月">▶</button>
+    </div>
+    <span id="staffBtns"></span>
+    <button class="btn btn-mint" onclick="applyAllTemplates()">✨ テンプレ一括適用</button>
+  </div>
+
+  <!-- 月カレンダー -->
+  <section class="card">
+    <div class="cal-grid" id="calGrid"></div>
+    <div class="legend">
+      <span>🔒 ロック中(クリックで解除)</span>
+      <span>🔓 解除中(クリックでロック)</span>
+      <span>⭐ 例外シフト(テンプレと違う時間)</span>
+      <span>💻 編集はPC推奨・シフト追加は日付マスをクリック</span>
+    </div>
+  </section>
+
+</div>
+
+<!-- シフト編集モーダル -->
+<div class="modal-bg" id="shiftModalBg" onclick="if(event.target===this)closeModal('shiftModalBg')">
+  <div class="modal">
+    <h3 id="shiftModalTitle">シフト編集</h3>
+    <div class="field">
+      <label>スタッフ</label>
+      <select id="shiftStaff"></select>
+    </div>
+    <div class="field">
+      <label>時間(例: 11:30-20、19-5)</label>
+      <input type="text" id="shiftTime" placeholder="15-21" autocomplete="off">
+      <div class="preset-row" id="shiftPresets"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" id="shiftDeleteBtn" onclick="deleteShift()">🗑 削除</button>
+      <button class="btn btn-ghost" onclick="closeModal('shiftModalBg')">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveShiftFromModal()">💾 保存</button>
+    </div>
+    <div class="hint">保存すると自動でロック🔒されます。時間を変えたいときはチップの🔒をクリックして解除してから。</div>
+  </div>
+</div>
+
+<!-- テンプレモーダル -->
+<div class="modal-bg" id="tmplModalBg" onclick="if(event.target===this)closeModal('tmplModalBg')">
+  <div class="modal">
+    <h3 id="tmplModalTitle">📋 テンプレート</h3>
+    <div id="tmplRows"></div>
+    <div class="hint">空欄 = 休み。時間は「11:30-20」「19-5」の形式で入力。</div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('tmplModalBg')">閉じる</button>
+      <button class="btn btn-primary" onclick="saveTemplate()">💾 テンプレ保存</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-mint" onclick="applyTemplateForStaff()">✨ この月に一括適用(ロック解除箇所のみ)</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= 設定 ================= */
+const GAS_URL = "https://script.google.com/macros/s/AKfycbxbUSbf976-6waIyLoOevYmqsDELU652-cNqB95oNQerrnE-2b7gww_gu6xQ6NM23g/exec";          // ← デプロイしたGASのURLを入れる(空ならデモモード)
+const TOKEN   = "sakura2026naikin";
+
+const STAFF = [
+  {id:"kya",  name:"きゃ", color:"#e8590c", bg:"#ffe8dd", excBg:"linear-gradient(135deg,#ffb37a,#ff8c42)"},
+  {id:"suya", name:"すや", color:"#d6579e", bg:"#ffeaf6", excBg:"linear-gradient(135deg,#ff9ed2,#f06bb3)"},
+  {id:"ran",  name:"らん", color:"#4d96d9", bg:"#e7f2fd", excBg:"linear-gradient(135deg,#7cc0ff,#4d96d9)"},
+  {id:"waka", name:"わか", color:"#8a6fd1", bg:"#f0ebfd", excBg:"linear-gradient(135deg,#b8a3f0,#8a6fd1)"},
+  {id:"kami", name:"かみ", color:"#3b5bdb", bg:"#e6ebfd", excBg:"linear-gradient(135deg,#7b96f5,#3b5bdb)"},
+];
+const DOW = ["日","月","火","水","木","金","土"];
+const TIME_PRESETS = ["11:30-17","11:30-19","11:30-20","12-21","13-21","14-21","15-21","16-21","16-22","19-5"];
+// 祝日(必要に応じて追記) "YYYY-MM-DD"
+const HOLIDAYS = ["2026-01-01","2026-01-12","2026-02-11","2026-02-23","2026-03-20","2026-04-29","2026-05-03","2026-05-04","2026-05-05","2026-05-06","2026-07-20","2026-08-11","2026-09-21","2026-09-22","2026-10-12","2026-11-03","2026-11-23"];
+
+/* ================= 状態 ================= */
+let state = {
+  shifts: {},      // { "2026-07-11": { kya:{time:"11:30-17",locked:true}, ... } }
+  templates: {},   // { kya:["","","15-21",...] }  index=曜日(0=日)
+  globalLock: false
+};
+let viewYear, viewMonth;   // 表示中の月
+let editing = null;        // {date, staffId(編集時)} モーダル用
+let tmplEditingStaff = null;
+
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2,"0");
+const key = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const todayKey = () => key(new Date());
+const staffOf = id => STAFF.find(s=>s.id===id);
+const esc = s => String(s??"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* ================= 初期化 ================= */
+init();
+function init(){
+  const now = new Date();
+  viewYear = now.getFullYear(); viewMonth = now.getMonth();
+  STAFF.forEach(s=>{ if(!state.templates[s.id]) state.templates[s.id] = ["","","","","","",""]; });
+  buildStaffButtons();
+  buildStaffSelect();
+  buildPresets();
+  if(GAS_URL){ loadFromGAS(); } else { loadDemo(); setSync("demo"); renderAll(); }
+}
+
+function loadDemo(){
+  // デモデータ(スクショ再現)
+  state.templates = {
+    kya:["","","15-21","15-21","16-21","12-21","11:30-17"],
+    suya:["","16-22","11:30-17","","","14-21","13-21"],
+    ran:["","11:30-20","","11:30-20","11:30-20","11:30-20",""],
+    waka:["","","","","","",""],
+    kami:["19-5","","","","","",""]
+  };
+  const y=2026, m=6; // 7月
+  const put=(d,sid,time,locked=true)=>{
+    const k=`${y}-${pad(m+1)}-${pad(d)}`;
+    (state.shifts[k] ??= {})[sid]={time,locked};
+  };
+  for(let d=1; d<=31; d++){
+    const dow = new Date(y,m,d).getDay();
+    STAFF.forEach(s=>{
+      const t = state.templates[s.id][dow];
+      if(t) put(d,s.id,t);
+    });
+  }
+  // 例外シフト(テンプレと違う時間)
+  put(5,"ran","11:30-19"); put(11,"ran","11:30-19"); put(25,"ran","11:30-19");
+  put(20,"ran","11:30-18"); put(21,"ran","11:30-19"); put(21,"suya","11:30-17"); put(21,"kya","15-21");
+  put(5,"kami","19-5"); put(12,"kami","19-5"); put(19,"kami","19-5");
+  put(12,"suya","11:30-19"); put(19,"suya","11:30-19");
+  delete state.shifts["2026-07-14"]; put(14,"suya","11:30-17"); put(14,"kya","15-21");
+}
+
+/* ================= 描画 ================= */
+function renderAll(){ renderWeek(); renderCalendar(); renderGlobalLockBtn(); }
+
+function isException(staffId, dateStr, time){
+  const dow = new Date(dateStr+"T00:00:00").getDay();
+  const t = (state.templates[staffId]||[])[dow] || "";
+  return time !== t; // テンプレが休みの日の出勤も例外扱い
+}
+
+function renderWeek(){
+  const now = new Date();
+  const start = new Date(now); start.setDate(now.getDate()-now.getDay()); // 日曜始まり
+  const days = [...Array(7)].map((_,i)=>{ const d=new Date(start); d.setDate(start.getDate()+i); return d; });
+  $("weekRange").textContent = `${days[0].getMonth()+1}/${days[0].getDate()}〜${days[6].getMonth()+1}/${days[6].getDate()}`;
+
+  let html = "<thead><tr><th>名前</th>";
+  days.forEach(d=>{
+    const cls = [];
+    if(d.getDay()===0) cls.push("sun");
+    if(d.getDay()===6) cls.push("sat");
+    if(key(d)===todayKey()) cls.push("today-col");
+    html += `<th class="${cls.join(" ")}">${d.getMonth()+1}/${d.getDate()}(${DOW[d.getDay()]})</th>`;
+  });
+  html += "</tr></thead><tbody>";
+  STAFF.forEach(s=>{
+    html += `<tr><td class="name" style="color:${s.color}">${esc(s.name)}</td>`;
+    days.forEach(d=>{
+      const k = key(d);
+      const sh = state.shifts[k]?.[s.id];
+      const tdCls = k===todayKey() ? "today-col" : "";
+      if(sh){
+        const exc = isException(s.id,k,sh.time);
+        const style = exc
+          ? `background:${s.excBg};color:#fff;`
+          : `background:${s.bg};color:${s.color};`;
+        html += `<td class="${tdCls}"><span class="week-chip ${exc?"exc":""}" style="${style}">${esc(sh.time)}</span></td>`;
+      }else{
+        html += `<td class="${tdCls}"><span class="dash">-</span></td>`;
+      }
+    });
+    html += "</tr>";
+  });
+  html += "</tbody>";
+  $("weekTable").innerHTML = html;
+}
+
+function renderCalendar(){
+  $("monthLabel").textContent = `${viewYear}年 ${viewMonth+1}月`;
+  const grid = $("calGrid");
+  let html = "";
+  DOW.forEach((d,i)=> html += `<div class="cal-dow ${i===0?"sun":i===6?"sat":""}">${d}</div>`);
+
+  const first = new Date(viewYear, viewMonth, 1);
+  const lastDate = new Date(viewYear, viewMonth+1, 0).getDate();
+  for(let i=0;i<first.getDay();i++) html += `<div class="cal-cell empty"></div>`;
+
+  for(let d=1; d<=lastDate; d++){
+    const date = new Date(viewYear, viewMonth, d);
+    const k = key(date);
+    const dow = date.getDay();
+    const isHoliday = HOLIDAYS.includes(k);
+    const cls = ["cal-cell","clickable"];
+    if(k===todayKey()) cls.push("today");
+    if(dow===0) cls.push("sun-cell");
+    if(dow===6) cls.push("sat-cell");
+    if(isHoliday) cls.push("holiday");
+
+    let chips = "";
+    const dayShifts = state.shifts[k] || {};
+    STAFF.forEach(s=>{
+      const sh = dayShifts[s.id];
+      if(!sh) return;
+      const exc = isException(s.id,k,sh.time);
+      const locked = state.globalLock || sh.locked;
+      const style = exc ? `background:${s.excBg};color:#fff;border-color:rgba(255,255,255,.5);`
+                        : `background:${s.bg};color:${s.color};`;
+      const editable = !locked;
+      chips += `<div class="chip ${exc?"exc":""} ${editable?"editable":""}" style="${style}"
+        onclick="onChipClick(event,'${k}','${s.id}')">
+        <span class="t">${esc(s.name)} ${esc(sh.time)}</span>
+        <span class="lock ${sh.locked?"":"open"}" title="${state.globalLock?"全体ロック中":sh.locked?"ロック解除":"ロックする"}"
+          onclick="onLockClick(event,'${k}','${s.id}')">${locked?"🔒":"🔓"}</span>
+      </div>`;
+    });
+
+    html += `<div class="${cls.join(" ")}" onclick="openShiftModal('${k}')">
+      <div class="date-num">${d}${isHoliday?'<span class="holiday-tag">祝</span>':""}</div>${chips}</div>`;
+  }
+  grid.innerHTML = html;
+}
+
+function renderGlobalLockBtn(){
+  const b = $("globalLockBtn");
+  b.classList.toggle("on", state.globalLock);
+  b.innerHTML = state.globalLock ? "🔒 全体ロック中" : "🔓 全体ロック";
+}
+
+function buildStaffButtons(){
+  $("staffBtns").innerHTML = STAFF.map(s=>
+    `<button class="staff-btn" style="border-color:${s.color};color:${s.color}" onclick="openTmplModal('${s.id}')">📋 ${esc(s.name)}</button>`
+  ).join(" ");
+}
+function buildStaffSelect(){
+  $("shiftStaff").innerHTML = STAFF.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("");
+}
+function buildPresets(){
+  $("shiftPresets").innerHTML = TIME_PRESETS.map(t=>
+    `<button class="preset" onclick="$('shiftTime').value='${t}'">${t}</button>`
+  ).join("");
+}
+
+/* ================= 操作 ================= */
+function moveMonth(diff){
+  viewMonth += diff;
+  if(viewMonth<0){viewMonth=11;viewYear--;}
+  if(viewMonth>11){viewMonth=0;viewYear++;}
+  renderCalendar();
+}
+
+function onLockClick(ev,k,sid){
+  ev.stopPropagation();
+  if(state.globalLock){ toast("全体ロック中です🔒 先に全体ロックを解除してね"); return; }
+  const sh = state.shifts[k]?.[sid];
+  if(!sh) return;
+  sh.locked = !sh.locked;
+  renderAll();
+  gasPost({action:"saveShift", date:k, staffId:sid, time:sh.time, locked:sh.locked?"1":"0"});
+  toast(sh.locked ? "ロックしました🔒" : "ロック解除しました🔓");
+}
+
+function onChipClick(ev,k,sid){
+  ev.stopPropagation();
+  const sh = state.shifts[k]?.[sid];
+  if(!sh) return;
+  if(state.globalLock){ toast("全体ロック中です🔒"); return; }
+  if(sh.locked){ toast("ロック中です🔒 鍵をクリックで解除してね"); return; }
+  openShiftModal(k, sid);
+}
+
+function openShiftModal(k, sid){
+  if(state.globalLock){ toast("全体ロック中です🔒"); return; }
+  editing = {date:k, staffId:sid||null};
+  const d = new Date(k+"T00:00:00");
+  $("shiftModalTitle").textContent = `${d.getMonth()+1}/${d.getDate()}(${DOW[d.getDay()]}) のシフト`;
+  if(sid){
+    $("shiftStaff").value = sid;
+    $("shiftStaff").disabled = true;
+    $("shiftTime").value = state.shifts[k][sid].time;
+    $("shiftDeleteBtn").style.display = "";
+  }else{
+    $("shiftStaff").disabled = false;
+    $("shiftTime").value = "";
+    $("shiftDeleteBtn").style.display = "none";
+  }
+  $("shiftModalBg").classList.add("show");
+  setTimeout(()=>$("shiftTime").focus(),50);
+}
+
+function saveShiftFromModal(){
+  const sid = $("shiftStaff").value;
+  const time = $("shiftTime").value.trim();
+  if(!time){ toast("時間を入力してね⏰"); return; }
+  if(!/^\d{1,2}(:\d{2})?-\d{1,2}(:\d{2})?$/.test(time)){ toast("「11:30-20」の形式で入力してね"); return; }
+  const k = editing.date;
+  const existed = state.shifts[k]?.[sid];
+  if(existed && existed.locked && editing.staffId!==sid){ toast(`${staffOf(sid).name}さんはロック中です🔒`); return; }
+  (state.shifts[k] ??= {})[sid] = {time, locked:true}; // 保存したら自動ロック
+  closeModal("shiftModalBg");
+  renderAll();
+  gasPost({action:"saveShift", date:k, staffId:sid, time, locked:"1"});
+  toast("保存してロックしました🔒✨");
+}
+
+function deleteShift(){
+  const k = editing.date, sid = editing.staffId;
+  if(!sid) return;
+  delete state.shifts[k][sid];
+  if(Object.keys(state.shifts[k]).length===0) delete state.shifts[k];
+  closeModal("shiftModalBg");
+  renderAll();
+  gasPost({action:"deleteShift", date:k, staffId:sid});
+  toast("削除しました🗑");
+}
+
+function toggleGlobalLock(){
+  state.globalLock = !state.globalLock;
+  renderAll();
+  gasPost({action:"setGlobalLock", value:state.globalLock?"1":"0"});
+  toast(state.globalLock ? "全体ロックON🔒 編集できません" : "全体ロックOFF🔓");
+}
+
+/* ---- テンプレ ---- */
+function openTmplModal(sid){
+  tmplEditingStaff = sid;
+  const s = staffOf(sid);
+  $("tmplModalTitle").innerHTML = `📋 <span style="color:${s.color}">${esc(s.name)}</span> のテンプレート`;
+  const tpl = state.templates[sid] || ["","","","","","",""];
+  $("tmplRows").innerHTML = DOW.map((d,i)=>
+    `<div class="tmpl-grid">
+      <div class="tmpl-dow ${i===0?"sun":i===6?"sat":""}">${d}</div>
+      <input type="text" id="tmpl_${i}" value="${esc(tpl[i])}" placeholder="休み" autocomplete="off">
+    </div>`).join("");
+  $("tmplModalBg").classList.add("show");
+}
+
+function saveTemplate(){
+  const sid = tmplEditingStaff;
+  const tpl = [...Array(7)].map((_,i)=>$(`tmpl_${i}`).value.trim());
+  for(const t of tpl){
+    if(t && !/^\d{1,2}(:\d{2})?-\d{1,2}(:\d{2})?$/.test(t)){ toast(`「${t}」の形式が不正です`); return; }
+  }
+  state.templates[sid] = tpl;
+  renderAll();
+  gasPost({action:"saveTemplate", staffId:sid, data:JSON.stringify(tpl)});
+  toast("テンプレ保存しました💾");
+}
+
+// ロック解除箇所のみ・1人分をこの月に適用
+function applyTemplateForStaff(){
+  if(state.globalLock){ toast("全体ロック中です🔒"); return; }
+  saveTemplateSilent();
+  const n = applyTemplate(tmplEditingStaff);
+  closeModal("tmplModalBg");
+  renderAll();
+  toast(`${staffOf(tmplEditingStaff).name}さんに${n}件適用しました✨(ロック中はスキップ)`);
+}
+function saveTemplateSilent(){
+  const sid = tmplEditingStaff;
+  const tpl = [...Array(7)].map((_,i)=>$(`tmpl_${i}`).value.trim());
+  state.templates[sid]=tpl;
+  gasPost({action:"saveTemplate", staffId:sid, data:JSON.stringify(tpl)});
+}
+
+function applyAllTemplates(){
+  if(state.globalLock){ toast("全体ロック中です🔒"); return; }
+  if(!confirm(`${viewYear}年${viewMonth+1}月に全員のテンプレを一括適用します。\nロック中🔒のシフトはそのまま残ります。よろしいですか?`)) return;
+  let n=0;
+  STAFF.forEach(s=> n += applyTemplate(s.id));
+  renderAll();
+  toast(`${n}件適用しました✨(ロック中はスキップ)`);
+}
+
+// 空きマス+ロック解除中のマスにのみテンプレを流し込む。適用後はロック。
+function applyTemplate(sid){
+  const tpl = state.templates[sid] || [];
+  const lastDate = new Date(viewYear, viewMonth+1, 0).getDate();
+  const batch = [];
+  for(let d=1; d<=lastDate; d++){
+    const date = new Date(viewYear, viewMonth, d);
+    const k = key(date);
+    const t = tpl[date.getDay()] || "";
+    const cur = state.shifts[k]?.[sid];
+    if(cur && cur.locked) continue;           // ロック中は絶対に触らない
+    if(t){
+      (state.shifts[k] ??= {})[sid] = {time:t, locked:true};
+      batch.push({date:k, staffId:sid, time:t, locked:"1"});
+    }else if(cur && !cur.locked){
+      delete state.shifts[k][sid];
+      if(Object.keys(state.shifts[k]).length===0) delete state.shifts[k];
+      batch.push({date:k, staffId:sid, time:"", locked:"0", del:"1"});
+    }
+  }
+  if(batch.length) gasPost({action:"bulkSave", data:JSON.stringify(batch)});
+  return batch.length;
+}
+
+function closeModal(id){ $(id).classList.remove("show"); }
+let toastTimer;
+function toast(msg){
+  const t=$("toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"),2400);
+}
+
+/* ================= GAS同期 ================= */
+function setSync(mode){
+  const b=$("syncBadge");
+  if(mode==="demo"){ b.textContent="🎀 デモモード(GAS未接続)"; b.className="sync-badge"; }
+  else if(mode==="ok"){ b.textContent="☁️ 同期OK"; b.className="sync-badge ok"; }
+  else if(mode==="saving"){ b.textContent="☁️ 保存中…"; b.className="sync-badge"; }
+  else { b.textContent="⚠️ 接続エラー"; b.className="sync-badge err"; }
+}
+
+async function loadFromGAS(){
+  try{
+    const res = await fetch(`${GAS_URL}?action=load&token=${encodeURIComponent(TOKEN)}`);
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+    state.shifts = data.shifts || {};
+    state.templates = data.templates || {};
+    STAFF.forEach(s=>{ if(!state.templates[s.id]) state.templates[s.id]=["","","","","","",""]; });
+    state.globalLock = data.globalLock === true || data.globalLock === "1";
+    setSync("ok");
+  }catch(e){
+    console.error(e); setSync("err");
+    toast("データ読み込みに失敗しました😢");
+  }
+  renderAll();
+}
+
+function gasPost(params){
+  if(!GAS_URL) return; // デモモード
+  setSync("saving");
+  const fd = new FormData();
+  fd.append("token", TOKEN);
+  Object.entries(params).forEach(([k,v])=>fd.append(k,v));
+  fetch(GAS_URL, {method:"POST", mode:"no-cors", body:fd})
+    .then(()=>setSync("ok"))
+    .catch(()=>{ setSync("err"); toast("保存に失敗した可能性があります⚠️"); });
+}
+</script>
+</body>
+</html>
