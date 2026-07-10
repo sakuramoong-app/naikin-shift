@@ -91,7 +91,7 @@ table.week th{
   background:linear-gradient(135deg,#4a3d5c,#5c4a6e);
   color:#fff;font-weight:700;padding:10px 6px;text-align:center;white-space:nowrap;
 }
-table.week th:first-child{border-radius:12px 0 0 0;}
+table.week th:first-child{border-radius:12px 0 0 0;position:sticky;left:0;z-index:3;}
 table.week th:last-child{border-radius:0 12px 0 0;}
 table.week th.sun{color:#ffb3c1;}
 table.week th.sat{color:#a5d8ff;}
@@ -100,7 +100,10 @@ table.week td{
   padding:9px 6px;text-align:center;border-bottom:1.5px solid var(--line);
   white-space:nowrap;font-weight:700;
 }
-table.week td.name{font-weight:800;}
+table.week td.name{
+  font-weight:800;position:sticky;left:0;z-index:2;background:#fff;
+  box-shadow:3px 0 6px rgba(92,74,85,.06);
+}
 table.week td.today-col{background:var(--mint-soft);}
 table.week tr:last-child td:first-child{border-radius:0 0 0 12px;}
 table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
@@ -153,7 +156,9 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
 }
 .cal-cell.holiday, .cal-cell.sun-cell{background:#fff8f9;}
 .date-num{font-size:13.5px;font-weight:800;line-height:1;display:flex;align-items:center;gap:4px;}
+.date-num .dow-label{display:none;font-weight:800;}
 .date-num .holiday-tag{font-size:9.5px;background:#ffb3c1;color:#fff;border-radius:6px;padding:1.5px 5px;}
+.cal-cell .chips{display:flex;flex-direction:column;gap:4px;min-width:0;}
 .cal-cell.sun-cell .date-num, .cal-cell.holiday .date-num{color:#ff7d99;}
 .cal-cell.sat-cell .date-num{color:#6aa9e8;}
 .cal-cell.today .date-num{color:var(--mint);}
@@ -239,24 +244,10 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-soft);font-weight:700;margin-top:10px;padding:0 4px;}
 .legend span{display:inline-flex;align-items:center;gap:5px;}
 
-/* ===== mobile ===== */
+/* ===== mobile: カレンダーを縦リスト表示に ===== */
 @media (max-width:700px){
   body{padding:8px;overflow-x:hidden;}
   .card{padding:10px;border-radius:18px;}
-  .cal-grid{gap:3px;}
-  .cal-cell{min-height:72px;padding:3px;border-radius:10px;gap:2.5px;}
-  .cal-cell.today{box-shadow:0 0 0 2.5px #d8f5ec;}
-  /* チップは「名前 / 時間」の2段表示・鍵は非表示(編集はPCで) */
-  .chip{
-    flex-direction:column;align-items:center;gap:0;
-    padding:2.5px 2px;border-radius:7px;
-  }
-  .chip .nm{font-size:8.5px;opacity:.85;line-height:1.2;}
-  .chip .tm{font-size:9.5px;flex:none;max-width:100%;line-height:1.2;}
-  .chip.exc .tm::after{content:"⭐";font-size:7px;margin-left:1px;}
-  .chip .lock{display:none;}
-  .date-num{font-size:11px;}
-  .date-num .holiday-tag{font-size:8px;padding:1px 3px;}
   .month-label{font-size:17px;}
   .app-title{font-size:18px;}
   .toolbar{gap:6px;}
@@ -264,6 +255,28 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
   table.week{min-width:560px;font-size:12px;}
   .week-chip{font-size:11px;padding:2px 8px;}
   .legend{font-size:10.5px;gap:8px;}
+
+  /* 曜日ヘッダーと月初の空マスは消して、1日=1行のリストへ */
+  .cal-dow{display:none;}
+  .cal-cell.empty{display:none;}
+  .cal-grid{display:flex;flex-direction:column;gap:5px;}
+  .cal-cell{
+    flex-direction:row;align-items:center;gap:8px;
+    min-height:0;padding:7px 10px;border-radius:13px;
+  }
+  .cal-cell.today{box-shadow:0 0 0 3px #d8f5ec;}
+  .date-num{
+    flex:none;width:58px;font-size:12.5px;
+    flex-wrap:wrap;gap:2px;line-height:1.3;
+  }
+  .date-num .dow-label{display:inline;font-size:11px;}
+  .date-num .holiday-tag{font-size:8.5px;padding:1px 4px;}
+  /* チップは横並び+折り返し。時間は省略せず全部見せる */
+  .chips{flex:1;flex-direction:row;flex-wrap:wrap;gap:4px;align-items:center;}
+  .chip{padding:3px 9px;border-radius:999px;font-size:11px;gap:4px;}
+  .chip .tm{flex:none;overflow:visible;}
+  .chip .lock{display:none;}
+  .chip.exc .tm::after{font-size:8px;}
 }
 
 /* ===== print ===== */
@@ -537,7 +550,8 @@ function renderCalendar(){
     });
 
     html += `<div class="${cls.join(" ")}" onclick="openShiftModal('${k}')">
-      <div class="date-num">${d}${isHoliday?'<span class="holiday-tag">祝</span>':""}</div>${chips}</div>`;
+      <div class="date-num">${d}<span class="dow-label">(${DOW[dow]})</span>${isHoliday?'<span class="holiday-tag">祝</span>':""}</div>
+      <div class="chips">${chips}</div></div>`;
   }
   grid.innerHTML = html;
 }
