@@ -273,12 +273,12 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
   /* チップ: 絵文字が名前代わり。時間は縮めず全表示 */
   .chip{
     flex-direction:column;align-items:center;gap:0;
-    padding:2.5px 1px;border-radius:7px;
+    padding:2.5px 0;border-radius:7px;width:100%;
   }
   .chip .em{display:block;font-size:10px;line-height:1.15;}
   .chip .nm{display:none;}
   .chip .tm{
-    flex:none;font-size:8.6px;letter-spacing:-.3px;line-height:1.2;
+    flex:none;font-size:8.2px;font-weight:700;letter-spacing:-.45px;line-height:1.2;
     overflow:visible;max-width:100%;
   }
   .chip .lock{display:none;}
@@ -395,8 +395,8 @@ const STAFF = [
   {id:"kya",  name:"きゃ", emoji:"🧡", color:"#e8590c", bg:"#ffe8dd", excBg:"linear-gradient(135deg,#ffb37a,#ff8c42)"},
   {id:"suya", name:"すや", emoji:"💗", color:"#d6579e", bg:"#ffeaf6", excBg:"linear-gradient(135deg,#ff9ed2,#f06bb3)"},
   {id:"ran",  name:"らん", emoji:"💙", color:"#4d96d9", bg:"#e7f2fd", excBg:"linear-gradient(135deg,#7cc0ff,#4d96d9)"},
-  {id:"waka", name:"わか", emoji:"🌠", color:"#8a6fd1", bg:"#f0ebfd", excBg:"linear-gradient(135deg,#b8a3f0,#8a6fd1)"},
   {id:"kami", name:"かみ", emoji:"🌙", color:"#3b5bdb", bg:"#e6ebfd", excBg:"linear-gradient(135deg,#7b96f5,#3b5bdb)"},
+  {id:"waka", name:"わか", emoji:"🦉", color:"#8a6fd1", bg:"#f0ebfd", excBg:"linear-gradient(135deg,#b8a3f0,#8a6fd1)"},
 ];
 const DOW = ["日","月","火","水","木","金","土"];
 const TIME_PRESETS = ["11:30-17","11:30-19","11:30-20","12-21","13-21","14-21","15-21","16-21","16-22","19-5"];
