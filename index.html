@@ -210,15 +210,19 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
 .modal-actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;}
 .modal-actions .btn{flex:1;justify-content:center;}
 .btn-danger{background:#fff;border:2px solid #ffd3de;color:#e05c7a;}
-.tmpl-grid{display:grid;grid-template-columns:44px 1fr;gap:7px;align-items:center;margin-bottom:4px;}
+.tmpl-grid{display:grid;grid-template-columns:44px 1fr 14px 1fr;gap:6px;align-items:center;margin-bottom:5px;}
+.tmpl-grid .tilde{text-align:center;color:var(--ink-soft);font-weight:800;}
+.tmpl-grid select{
+  font-family:inherit;font-size:14px;font-weight:700;padding:8px 6px;
+  border:2px solid var(--line);border-radius:12px;color:var(--ink);width:100%;background:#fffafb;
+}
+.tmpl-grid select:focus{outline:none;border-color:var(--sakura);}
+.time-row{display:flex;gap:8px;align-items:center;}
+.time-row select{flex:1;}
+.time-row .tilde{color:var(--ink-soft);font-weight:800;}
 .tmpl-dow{font-weight:800;font-size:13px;text-align:center;padding:6px 0;border-radius:10px;background:#faf5f7;}
 .tmpl-dow.sun{color:#ff7d99;background:#fff0f4;}
 .tmpl-dow.sat{color:#6aa9e8;background:#f0f7ff;}
-.tmpl-grid input{
-  font-family:inherit;font-size:14px;font-weight:700;padding:8px 12px;
-  border:2px solid var(--line);border-radius:12px;color:var(--ink);width:100%;background:#fffafb;
-}
-.tmpl-grid input:focus{outline:none;border-color:var(--sakura);}
 .hint{font-size:11.5px;color:var(--ink-soft);margin-top:8px;line-height:1.6;}
 
 /* toast */
@@ -312,8 +316,12 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
       <select id="shiftStaff"></select>
     </div>
     <div class="field">
-      <label>時間(例: 11:30-20、19-5)</label>
-      <input type="text" id="shiftTime" placeholder="15-21" autocomplete="off">
+      <label>時間(深夜は 1〜5 表記 / 例: 19〜5)</label>
+      <div class="time-row">
+        <select id="shiftStart"></select>
+        <span class="tilde">〜</span>
+        <select id="shiftEnd"></select>
+      </div>
       <div class="preset-row" id="shiftPresets"></div>
     </div>
     <div class="modal-actions">
@@ -330,7 +338,7 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
   <div class="modal">
     <h3 id="tmplModalTitle">📋 テンプレート</h3>
     <div id="tmplRows"></div>
-    <div class="hint">空欄 = 休み。時間は「11:30-20」「19-5」の形式で入力。</div>
+    <div class="hint">「休み」を選ぶとその曜日は休みになります。深夜は 1〜5 の表記(例: 19〜5 = 19時〜翌朝5時)。</div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('tmplModalBg')">閉じる</button>
       <button class="btn btn-primary" onclick="saveTemplate()">💾 テンプレ保存</button>
@@ -345,7 +353,7 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
 
 <script>
 /* ================= 設定 ================= */
-const GAS_URL = "https://script.google.com/macros/s/AKfycbxbUSbf976-6waIyLoOevYmqsDELU652-cNqB95oNQerrnE-2b7gww_gu6xQ6NM23g/exec";          // ← デプロイしたGASのURLを入れる(空ならデモモード)
+const GAS_URL = "";          // ← デプロイしたGASのURLを入れる(空ならデモモード)
 const TOKEN   = "sakura2026naikin";
 
 const STAFF = [
@@ -357,6 +365,18 @@ const STAFF = [
 ];
 const DOW = ["日","月","火","水","木","金","土"];
 const TIME_PRESETS = ["11:30-17","11:30-19","11:30-20","12-21","13-21","14-21","15-21","16-21","16-22","19-5"];
+// 営業時間: 12時〜翌朝5時(開店準備の11:30も選択可)。25時以降は1〜5表記。
+function timeOptions(){
+  const opts = ["11:30"];
+  for(let h=12; h<=24; h++){ opts.push(String(h)); if(h<24) opts.push(h+":30"); }
+  for(let h=1; h<=5; h++){ opts.push(String(h)); if(h<5) opts.push(h+":30"); }
+  return opts;
+}
+function timeOptionsHtml(emptyLabel){
+  return `<option value="">${emptyLabel}</option>` +
+    timeOptions().map(t=>`<option value="${t}">${t}</option>`).join("");
+}
+function splitTime(t){ const i=(t||"").indexOf("-"); return i<0?["",""]:[t.slice(0,i),t.slice(i+1)]; }
 // 祝日(必要に応じて追記) "YYYY-MM-DD"
 const HOLIDAYS = ["2026-01-01","2026-01-12","2026-02-11","2026-02-23","2026-03-20","2026-04-29","2026-05-03","2026-05-04","2026-05-05","2026-05-06","2026-07-20","2026-08-11","2026-09-21","2026-09-22","2026-10-12","2026-11-03","2026-11-23"];
 
@@ -524,9 +544,12 @@ function buildStaffSelect(){
   $("shiftStaff").innerHTML = STAFF.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("");
 }
 function buildPresets(){
-  $("shiftPresets").innerHTML = TIME_PRESETS.map(t=>
-    `<button class="preset" onclick="$('shiftTime').value='${t}'">${t}</button>`
-  ).join("");
+  $("shiftStart").innerHTML = timeOptionsHtml("開始");
+  $("shiftEnd").innerHTML = timeOptionsHtml("終了");
+  $("shiftPresets").innerHTML = TIME_PRESETS.map(t=>{
+    const [a,b]=splitTime(t);
+    return `<button class="preset" onclick="$('shiftStart').value='${a}';$('shiftEnd').value='${b}'">${a}〜${b}</button>`;
+  }).join("");
 }
 
 /* ================= 操作 ================= */
@@ -565,22 +588,22 @@ function openShiftModal(k, sid){
   if(sid){
     $("shiftStaff").value = sid;
     $("shiftStaff").disabled = true;
-    $("shiftTime").value = state.shifts[k][sid].time;
+    const [a,b] = splitTime(state.shifts[k][sid].time);
+    $("shiftStart").value = a; $("shiftEnd").value = b;
     $("shiftDeleteBtn").style.display = "";
   }else{
     $("shiftStaff").disabled = false;
-    $("shiftTime").value = "";
+    $("shiftStart").value = ""; $("shiftEnd").value = "";
     $("shiftDeleteBtn").style.display = "none";
   }
   $("shiftModalBg").classList.add("show");
-  setTimeout(()=>$("shiftTime").focus(),50);
 }
 
 function saveShiftFromModal(){
   const sid = $("shiftStaff").value;
-  const time = $("shiftTime").value.trim();
-  if(!time){ toast("時間を入力してね⏰"); return; }
-  if(!/^\d{1,2}(:\d{2})?-\d{1,2}(:\d{2})?$/.test(time)){ toast("「11:30-20」の形式で入力してね"); return; }
+  const a = $("shiftStart").value, b = $("shiftEnd").value;
+  if(!a || !b){ toast("開始と終了を選んでね⏰"); return; }
+  const time = `${a}-${b}`;
   const k = editing.date;
   const existed = state.shifts[k]?.[sid];
   if(existed && existed.locked && editing.staffId!==sid){ toast(`${staffOf(sid).name}さんはロック中です🔒`); return; }
@@ -615,40 +638,53 @@ function openTmplModal(sid){
   const s = staffOf(sid);
   $("tmplModalTitle").innerHTML = `📋 <span style="color:${s.color}">${esc(s.name)}</span> のテンプレート`;
   const tpl = state.templates[sid] || ["","","","","","",""];
-  $("tmplRows").innerHTML = DOW.map((d,i)=>
-    `<div class="tmpl-grid">
+  $("tmplRows").innerHTML = DOW.map((d,i)=>{
+    const [a,b] = splitTime(tpl[i]);
+    return `<div class="tmpl-grid">
       <div class="tmpl-dow ${i===0?"sun":i===6?"sat":""}">${d}</div>
-      <input type="text" id="tmpl_${i}" value="${esc(tpl[i])}" placeholder="休み" autocomplete="off">
-    </div>`).join("");
+      <select id="tmplS_${i}">${timeOptionsHtml("休み")}</select>
+      <span class="tilde">〜</span>
+      <select id="tmplE_${i}">${timeOptionsHtml("--")}</select>
+    </div>`;
+  }).join("");
+  DOW.forEach((_,i)=>{
+    const [a,b] = splitTime(tpl[i]);
+    $(`tmplS_${i}`).value = a; $(`tmplE_${i}`).value = b;
+  });
   $("tmplModalBg").classList.add("show");
 }
 
-function saveTemplate(){
-  const sid = tmplEditingStaff;
-  const tpl = [...Array(7)].map((_,i)=>$(`tmpl_${i}`).value.trim());
-  for(const t of tpl){
-    if(t && !/^\d{1,2}(:\d{2})?-\d{1,2}(:\d{2})?$/.test(t)){ toast(`「${t}」の形式が不正です`); return; }
+function readTmplInputs(){
+  const tpl = [];
+  for(let i=0;i<7;i++){
+    const a = $(`tmplS_${i}`).value, b = $(`tmplE_${i}`).value;
+    if(a && b) tpl.push(`${a}-${b}`);
+    else if(a || b){ toast(`${DOW[i]}曜: 開始と終了の両方を選んでね(休みは両方「休み/--」)`); return null; }
+    else tpl.push("");
   }
-  state.templates[sid] = tpl;
+  return tpl;
+}
+
+function saveTemplate(){
+  const tpl = readTmplInputs();
+  if(!tpl) return;
+  state.templates[tmplEditingStaff] = tpl;
   renderAll();
-  gasPost({action:"saveTemplate", staffId:sid, data:JSON.stringify(tpl)});
+  gasPost({action:"saveTemplate", staffId:tmplEditingStaff, data:JSON.stringify(tpl)});
   toast("テンプレ保存しました💾");
 }
 
 // ロック解除箇所のみ・1人分をこの月に適用
 function applyTemplateForStaff(){
   if(state.globalLock){ toast("全体ロック中です🔒"); return; }
-  saveTemplateSilent();
+  const tpl = readTmplInputs();
+  if(!tpl) return;
+  state.templates[tmplEditingStaff] = tpl;
+  gasPost({action:"saveTemplate", staffId:tmplEditingStaff, data:JSON.stringify(tpl)});
   const n = applyTemplate(tmplEditingStaff);
   closeModal("tmplModalBg");
   renderAll();
   toast(`${staffOf(tmplEditingStaff).name}さんに${n}件適用しました✨(ロック中はスキップ)`);
-}
-function saveTemplateSilent(){
-  const sid = tmplEditingStaff;
-  const tpl = [...Array(7)].map((_,i)=>$(`tmpl_${i}`).value.trim());
-  state.templates[sid]=tpl;
-  gasPost({action:"saveTemplate", staffId:sid, data:JSON.stringify(tpl)});
 }
 
 function applyAllTemplates(){
