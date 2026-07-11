@@ -257,6 +257,57 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-soft);font-weight:700;margin-top:10px;padding:0 4px;}
 .legend span{display:inline-flex;align-items:center;gap:5px;}
 
+/* ===== tabs ===== */
+.tabbar{display:flex;gap:8px;margin-bottom:14px;}
+.tab-btn{
+  flex:1;max-width:200px;font-family:inherit;font-weight:800;font-size:14px;
+  padding:10px 0;border-radius:16px;border:2px solid var(--line);background:#fff;
+  color:var(--ink-soft);cursor:pointer;transition:all .15s;
+}
+.tab-btn.active{
+  background:linear-gradient(135deg,#ff9fb8,#e5638c);color:#fff;border-color:transparent;
+  box-shadow:0 4px 14px rgba(229,99,140,.3);
+}
+
+/* ===== 予定チップ ===== */
+.echip{
+  border-radius:10px;padding:3.5px 7px;font-size:11px;font-weight:800;
+  display:flex;align-items:center;gap:4px;line-height:1.25;min-width:0;
+  cursor:pointer;user-select:none;-webkit-user-select:none;
+}
+.echip:hover{filter:brightness(.97);}
+.echip .ems{flex:none;font-size:11px;letter-spacing:-2px;margin-right:2px;}
+.echip .ttl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.echip .bell{flex:none;font-size:9px;}
+
+/* メンバー選択 */
+.member-pick{display:flex;gap:6px;flex-wrap:wrap;}
+.mem-btn{
+  font-family:inherit;font-weight:800;font-size:13px;padding:7px 13px;border-radius:999px;
+  border:2px solid;background:#fff;cursor:pointer;opacity:.45;transition:all .12s;
+}
+.mem-btn.on{opacity:1;box-shadow:0 3px 8px rgba(0,0,0,.12);transform:translateY(-1px);}
+
+/* 通知設定欄 */
+.notify-box{background:#fffaf2;border:1.5px solid #ffe8c2;border-radius:14px;padding:12px;}
+.chk{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:800;cursor:pointer;}
+.chk input{width:17px;height:17px;accent-color:var(--sakura-deep);}
+#notifyFields{margin-top:10px;}
+#notifyFields input[type=date]{
+  font-family:inherit;font-size:14px;font-weight:700;padding:9px 12px;
+  border:2px solid var(--line);border-radius:12px;color:var(--ink);background:#fffafb;flex:1.3;
+}
+#notifyFields input[type=date]:focus{outline:none;border-color:var(--sakura);}
+#notifyFields select{
+  font-family:inherit;font-size:14px;font-weight:700;padding:9px 10px;
+  border:2px solid var(--line);border-radius:12px;color:var(--ink);background:#fffafb;flex:1;
+}
+.field textarea{
+  width:100%;font-family:inherit;font-size:14px;font-weight:700;padding:10px 14px;
+  border:2px solid var(--line);border-radius:14px;color:var(--ink);background:#fffafb;resize:vertical;min-height:56px;
+}
+.field textarea:focus{outline:none;border-color:var(--sakura);}
+
 /* ===== mobile: 絵文字+時間のコンパクトカレンダー ===== */
 @media (max-width:700px){
   body{padding:8px;overflow-x:hidden;}
@@ -296,6 +347,14 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
   /* ⭐は幅を取るので絵文字の横に付ける */
   .chip.exc .tm::after{content:none;}
   .chip.exc .em::after{content:"⭐";font-size:7px;margin-left:1px;}
+  /* 予定チップ */
+  .echip{
+    flex-direction:column;align-items:center;gap:0;padding:2.5px 1px;border-radius:7px;
+  }
+  .echip .ems{font-size:9.5px;margin:0;line-height:1.15;}
+  .echip .ttl{flex:none;font-size:8.2px;font-weight:700;letter-spacing:-.3px;max-width:100%;line-height:1.2;}
+  .echip .bell{display:none;}
+  .tab-btn{font-size:13px;padding:9px 0;}
 }
 
 /* ===== print ===== */
@@ -320,6 +379,12 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
     </div>
   </header>
 
+  <div class="tabbar">
+    <button class="tab-btn active" id="tabShift" onclick="switchTab('shift')">🗓 シフト</button>
+    <button class="tab-btn" id="tabEvent" onclick="switchTab('event')">📌 予定</button>
+  </div>
+
+  <div id="shiftTab">
   <!-- 今週のシフト -->
   <section class="card">
     <div class="card-head">
@@ -351,6 +416,30 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
       <span>➕ 日付マスをタップでシフト追加</span>
     </div>
   </section>
+  </div><!-- /shiftTab -->
+
+  <div id="eventTab" style="display:none">
+  <!-- 予定ツールバー -->
+  <div class="toolbar">
+    <div class="month-nav">
+      <button class="nav-btn" onclick="moveMonth(-1)" aria-label="前月">◀</button>
+      <span class="month-label" id="monthLabelEv"></span>
+      <button class="nav-btn" onclick="moveMonth(1)" aria-label="翌月">▶</button>
+    </div>
+    <button class="btn btn-ghost" onclick="openMailModal()">📧 通知メール設定</button>
+  </div>
+
+  <!-- 予定カレンダー -->
+  <section class="card">
+    <div class="staff-legend" id="eventLegend"></div>
+    <div class="cal-grid" id="evGrid"></div>
+    <div class="legend">
+      <span>🌸 全員周知の予定</span>
+      <span>🔔 メール通知あり</span>
+      <span>➕ 日付マスをタップで予定追加・チップタップで編集</span>
+    </div>
+  </section>
+  </div><!-- /eventTab -->
 
 </div>
 
@@ -396,6 +485,60 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
   </div>
 </div>
 
+<!-- 予定編集モーダル -->
+<div class="modal-bg" id="eventModalBg" onclick="if(event.target===this)closeModal('eventModalBg')">
+  <div class="modal">
+    <h3 id="eventModalTitle">予定</h3>
+    <div class="field">
+      <label>タイトル</label>
+      <input type="text" id="evTitle" maxlength="40" placeholder="例: 店舗ミーティング" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>メンバー(複数選択OK)</label>
+      <div class="member-pick" id="evMembers"></div>
+    </div>
+    <div class="field">
+      <label>時間(任意)</label>
+      <select id="evTime" style="width:100%;font-family:inherit;font-size:15px;font-weight:700;padding:10px 14px;border:2px solid var(--line);border-radius:14px;color:var(--ink);background:#fffafb;"></select>
+    </div>
+    <div class="field">
+      <label>メモ(任意)</label>
+      <textarea id="evMemo" maxlength="200" placeholder="持ち物、場所など"></textarea>
+    </div>
+    <div class="field notify-box">
+      <label class="chk"><input type="checkbox" id="evNotify" onchange="toggleNotifyFields()"> 📧 メールで通知する</label>
+      <div id="notifyFields">
+        <div class="time-row">
+          <input type="date" id="evNotifyDate">
+          <select id="evNotifyTime"></select>
+        </div>
+        <div class="hint">通知先: <b id="notifyEmailLabel">未設定</b>(右上の📧から登録)</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" id="evDeleteBtn" onclick="deleteEvent()">🗑 削除</button>
+      <button class="btn btn-ghost" onclick="closeModal('eventModalBg')">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveEventFromModal()">💾 保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 通知メール設定モーダル -->
+<div class="modal-bg" id="mailModalBg" onclick="if(event.target===this)closeModal('mailModalBg')">
+  <div class="modal">
+    <h3>📧 通知メール設定</h3>
+    <div class="field">
+      <label>通知の送り先(共有メールアドレス1つ)</label>
+      <input type="text" id="mailInput" placeholder="sakura@example.com" autocomplete="off">
+    </div>
+    <div class="hint">予定に「📧メールで通知する」を付けると、設定した日時にこのアドレスへメールが届きます。</div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('mailModalBg')">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveMail()">💾 保存</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -431,11 +574,17 @@ const HOLIDAYS = ["2026-01-01","2026-01-12","2026-02-11","2026-02-23","2026-03-2
 let state = {
   shifts: {},      // { "2026-07-11": { kya:{time:"11:30-17",locked:true}, ... } }
   templates: {},   // { kya:["","","15-21",...] }  index=曜日(0=日)
-  globalLock: false
+  globalLock: false,
+  events: [],      // [{id,date,time,title,members:["kya","ran"]or["all"],memo,notifyAt}]
+  notifyEmail: ""
 };
 let viewYear, viewMonth;   // 表示中の月
 let editing = null;        // {date, staffId(編集時)} モーダル用
 let tmplEditingStaff = null;
+let editingEventId = null; // 予定編集用(nullなら新規)
+let currentTab = "shift";
+const ALL_MEMBER = {id:"all", name:"全員", emoji:"🌸", color:"#e5638c", bg:"#ffe3ec"};
+const MULTI_STYLE = {color:"#1f9d7d", bg:"#e6faf4"};
 
 const $ = id => document.getElementById(id);
 const pad = n => String(n).padStart(2,"0");
@@ -453,6 +602,7 @@ function init(){
   buildStaffButtons();
   buildStaffSelect();
   buildPresets();
+  buildEventUI();
   if(GAS_URL){ loadFromGAS(); } else { loadDemo(); setSync("demo"); renderAll(); }
 }
 
@@ -483,10 +633,24 @@ function loadDemo(){
   put(5,"kami","19-5"); put(12,"kami","19-5"); put(19,"kami","19-5");
   put(12,"suya","11:30-19"); put(19,"suya","11:30-19");
   delete state.shifts["2026-07-14"]; put(14,"suya","11:30-17"); put(14,"kya","15-21");
+  // サンプル予定
+  state.events = [
+    {id:"ev_demo1", date:"2026-07-15", time:"14:00", title:"店舗ミーティング", members:["all"], memo:"", notifyAt:"2026-07-15 12:00"},
+    {id:"ev_demo2", date:"2026-07-18", time:"", title:"面接対応", members:["kya","ran"], memo:"", notifyAt:""},
+    {id:"ev_demo3", date:"2026-07-22", time:"19:00", title:"備品発注締切", members:["suya"], memo:"", notifyAt:""}
+  ];
 }
 
 /* ================= 描画 ================= */
-function renderAll(){ renderWeek(); renderCalendar(); renderGlobalLockBtn(); }
+function renderAll(){ renderWeek(); renderCalendar(); renderEvents(); renderGlobalLockBtn(); }
+
+function switchTab(t){
+  currentTab = t;
+  $("shiftTab").style.display = t==="shift" ? "" : "none";
+  $("eventTab").style.display = t==="event" ? "" : "none";
+  $("tabShift").classList.toggle("active", t==="shift");
+  $("tabEvent").classList.toggle("active", t==="event");
+}
 
 function isException(staffId, dateStr, time){
   const dow = new Date(dateStr+"T00:00:00").getDay();
@@ -611,6 +775,7 @@ function moveMonth(diff){
   if(viewMonth<0){viewMonth=11;viewYear--;}
   if(viewMonth>11){viewMonth=0;viewYear++;}
   renderCalendar();
+  renderEvents();
 }
 
 // "11:30-20"→690分、"1-5"(深夜25時開始)→1500分。ソート用
@@ -801,6 +966,193 @@ function applyTemplate(sid){
 }
 
 function closeModal(id){ $(id).classList.remove("show"); }
+
+/* ================= 予定タブ ================= */
+function evStyle(members){
+  if(members.includes("all")) return `background:${ALL_MEMBER.bg};color:${ALL_MEMBER.color};`;
+  if(members.length===1){
+    const s = staffOf(members[0]);
+    return s ? `background:${s.bg};color:${s.color};` : "";
+  }
+  return `background:${MULTI_STYLE.bg};color:${MULTI_STYLE.color};`;
+}
+function evEmojis(members){
+  if(members.includes("all")) return ALL_MEMBER.emoji;
+  return members.map(id=>staffOf(id)?.emoji||"").join("");
+}
+// 予定ソート: 時間なし→先頭、あとは時刻順
+function evSortKey(ev){
+  if(!ev.time) return -1;
+  const m = ev.time.match(/^(\d{1,2}):(\d{2})$/);
+  return m ? (+m[1])*60+(+m[2]) : 9999;
+}
+
+function renderEvents(){
+  $("monthLabelEv").textContent = `${viewYear}年 ${viewMonth+1}月`;
+  const grid = $("evGrid");
+  let html = "";
+  DOW.forEach((d,i)=> html += `<div class="cal-dow ${i===0?"sun":i===6?"sat":""}">${d}</div>`);
+
+  const first = new Date(viewYear, viewMonth, 1);
+  const lastDate = new Date(viewYear, viewMonth+1, 0).getDate();
+  for(let i=0;i<first.getDay();i++) html += `<div class="cal-cell empty"></div>`;
+
+  for(let d=1; d<=lastDate; d++){
+    const date = new Date(viewYear, viewMonth, d);
+    const k = key(date);
+    const dow = date.getDay();
+    const isHoliday = HOLIDAYS.includes(k);
+    const cls = ["cal-cell","clickable"];
+    if(k===todayKey()) cls.push("today");
+    if(dow===0) cls.push("sun-cell");
+    if(dow===6) cls.push("sat-cell");
+    if(isHoliday) cls.push("holiday");
+
+    const dayEvents = state.events.filter(e=>e.date===k).sort((a,b)=>evSortKey(a)-evSortKey(b));
+    let chips = "";
+    dayEvents.forEach(ev=>{
+      const label = (ev.time ? ev.time+" " : "") + ev.title;
+      chips += `<div class="echip" style="${evStyle(ev.members)}"
+        onclick="event.stopPropagation();openEventModal('${k}','${ev.id}')">
+        <span class="ems">${evEmojis(ev.members)}</span><span class="ttl">${esc(label)}</span>${ev.notifyAt?'<span class="bell">🔔</span>':""}
+      </div>`;
+    });
+
+    html += `<div class="${cls.join(" ")}" onclick="openEventModal('${k}')">
+      <div class="date-num">${d}<span class="dow-label">(${DOW[dow]})</span>${isHoliday?'<span class="holiday-tag">祝</span>':""}</div>
+      <div class="chips">${chips}</div></div>`;
+  }
+  grid.innerHTML = html;
+}
+
+/* ---- 予定モーダル ---- */
+function buildEventUI(){
+  // メンバー選択ボタン(全員+各スタッフ)
+  const members = [ALL_MEMBER, ...STAFF];
+  $("evMembers").innerHTML = members.map(m=>
+    `<button type="button" class="mem-btn" id="mem_${m.id}" style="border-color:${m.color};color:${m.color}"
+      onclick="toggleMember('${m.id}')">${m.emoji} ${esc(m.name)}</button>`
+  ).join("");
+  // 時間(終日〜23:30、30分刻み)
+  let opts = `<option value="">終日(時間なし)</option>`;
+  for(let h=0; h<24; h++){ opts += `<option value="${h}:00">${h}:00</option><option value="${h}:30">${h}:30</option>`; }
+  $("evTime").innerHTML = opts;
+  // 通知時刻(30分刻み)
+  let nopts = "";
+  for(let h=0; h<24; h++){ nopts += `<option value="${pad(h)}:00">${h}:00</option><option value="${pad(h)}:30">${h}:30</option>`; }
+  $("evNotifyTime").innerHTML = nopts;
+  // 予定タブの凡例
+  $("eventLegend").innerHTML = [ALL_MEMBER, ...STAFF].map(m=>
+    `<span style="color:${m.color}">${m.emoji}${esc(m.name)}</span>`
+  ).join("");
+}
+
+function toggleMember(id){
+  const btn = $(`mem_${id}`);
+  const turningOn = !btn.classList.contains("on");
+  if(id==="all" && turningOn){
+    // 全員を選んだら他は解除
+    document.querySelectorAll(".mem-btn").forEach(b=>b.classList.remove("on"));
+    btn.classList.add("on");
+  }else{
+    if(turningOn) $("mem_all").classList.remove("on"); // 個人を選んだら全員は解除
+    btn.classList.toggle("on");
+  }
+}
+function selectedMembers(){
+  return [ALL_MEMBER, ...STAFF].filter(m=>$(`mem_${m.id}`).classList.contains("on")).map(m=>m.id);
+}
+function setMembers(ids){
+  document.querySelectorAll(".mem-btn").forEach(b=>b.classList.remove("on"));
+  ids.forEach(id=>$(`mem_${id}`)?.classList.add("on"));
+}
+
+function toggleNotifyFields(){
+  $("notifyFields").style.display = $("evNotify").checked ? "" : "none";
+}
+
+function openEventModal(k, evId){
+  editingEventId = evId || null;
+  const d = new Date(k+"T00:00:00");
+  $("eventModalTitle").textContent = `${d.getMonth()+1}/${d.getDate()}(${DOW[d.getDay()]}) の予定`;
+  $("notifyEmailLabel").textContent = state.notifyEmail || "未設定";
+  const ev = evId ? state.events.find(e=>e.id===evId) : null;
+  if(ev){
+    $("evTitle").value = ev.title;
+    setMembers(ev.members);
+    $("evTime").value = ev.time || "";
+    $("evMemo").value = ev.memo || "";
+    if(ev.notifyAt){
+      $("evNotify").checked = true;
+      const [nd, nt] = ev.notifyAt.split(" ");
+      $("evNotifyDate").value = nd; $("evNotifyTime").value = nt;
+    }else{
+      $("evNotify").checked = false;
+    }
+    $("evDeleteBtn").style.display = "";
+  }else{
+    $("evTitle").value = ""; setMembers([]); $("evTime").value = ""; $("evMemo").value = "";
+    $("evNotify").checked = false;
+    $("evNotifyDate").value = k; $("evNotifyTime").value = "10:00";
+    $("evDeleteBtn").style.display = "none";
+  }
+  editing = {date:k};
+  toggleNotifyFields();
+  $("eventModalBg").classList.add("show");
+}
+
+function saveEventFromModal(){
+  const title = $("evTitle").value.trim();
+  if(!title){ toast("タイトルを入力してね📝"); return; }
+  const members = selectedMembers();
+  if(!members.length){ toast("メンバーを選んでね(全員周知なら🌸全員)"); return; }
+  let notifyAt = "";
+  if($("evNotify").checked){
+    if(!state.notifyEmail){ toast("先に📧通知メール設定でアドレスを登録してね"); return; }
+    const nd = $("evNotifyDate").value, nt = $("evNotifyTime").value;
+    if(!nd){ toast("通知の日付を選んでね"); return; }
+    notifyAt = `${nd} ${nt}`;
+  }
+  const ev = {
+    id: editingEventId || "ev" + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+    date: editing.date,
+    time: $("evTime").value,
+    title,
+    members,
+    memo: $("evMemo").value.trim(),
+    notifyAt
+  };
+  const idx = state.events.findIndex(e=>e.id===ev.id);
+  if(idx>=0) state.events[idx] = ev; else state.events.push(ev);
+  closeModal("eventModalBg");
+  renderEvents();
+  gasPost({action:"saveEvent", id:ev.id, date:ev.date, time:ev.time, title:ev.title,
+           members:ev.members.join(","), memo:ev.memo, notifyAt:ev.notifyAt});
+  toast(notifyAt ? "予定を保存しました🔔 通知予約済み" : "予定を保存しました📌");
+}
+
+function deleteEvent(){
+  if(!editingEventId) return;
+  state.events = state.events.filter(e=>e.id!==editingEventId);
+  closeModal("eventModalBg");
+  renderEvents();
+  gasPost({action:"deleteEvent", id:editingEventId});
+  toast("予定を削除しました🗑");
+}
+
+/* ---- 通知メール設定 ---- */
+function openMailModal(){
+  $("mailInput").value = state.notifyEmail || "";
+  $("mailModalBg").classList.add("show");
+}
+function saveMail(){
+  const email = $("mailInput").value.trim();
+  if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ toast("メールアドレスの形式が変かも📧"); return; }
+  state.notifyEmail = email;
+  closeModal("mailModalBg");
+  gasPost({action:"setNotifyEmail", value:email});
+  toast(email ? "通知先を保存しました📧" : "通知先を削除しました");
+}
 let toastTimer;
 function toast(msg){
   const t=$("toast"); t.textContent=msg; t.classList.add("show");
@@ -920,6 +1272,8 @@ async function loadFromGAS(){
     state.templates = data.templates || {};
     STAFF.forEach(s=>{ if(!state.templates[s.id]) state.templates[s.id]=["","","","","","",""]; });
     state.globalLock = data.globalLock === true || data.globalLock === "1";
+    state.events = Array.isArray(data.events) ? data.events : [];
+    state.notifyEmail = data.notifyEmail || "";
     setSync("ok");
     renderAll();
     return true;
