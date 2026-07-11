@@ -168,8 +168,11 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
   border-radius:10px;padding:3.5px 7px;font-size:11.5px;font-weight:800;
   display:flex;align-items:center;gap:4px;line-height:1.25;
   border:1.5px solid transparent;min-width:0;
-  user-select:none;
+  user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
+  touch-action:manipulation;cursor:pointer;
 }
+/* ロック解除中 = 黄色い枠(スマホでも状態が分かる) */
+.chip.unlocked{outline:2.5px solid #ffd43b;outline-offset:1px;}
 .chip .em{display:none;}
 .chip .nm{flex:none;}
 .chip .tm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -181,7 +184,7 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
 .chip .lock:hover{transform:scale(1.25);}
 .chip .lock.open{opacity:.55;}
 .chip.editable{cursor:pointer;}
-.chip.editable:hover{filter:brightness(.97);}
+.chip:hover{filter:brightness(.97);}
 .chip.exc{
   border-style:dashed;
   box-shadow:0 2px 8px rgba(255,140,66,.25);
@@ -333,10 +336,10 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
     <div class="staff-legend" id="staffLegend"></div>
     <div class="cal-grid" id="calGrid"></div>
     <div class="legend">
-      <span>🔒 ロック中(クリックで解除)</span>
-      <span>🔓 解除中(クリックでロック)</span>
+      <span>✋ チップ長押しでロック解除⇔ロック</span>
+      <span>💛 黄色枠 = 解除中(タップで編集OK)</span>
       <span>⭐ 例外シフト(テンプレと違う時間)</span>
-      <span>💻 編集はPC推奨・シフト追加は日付マスをクリック</span>
+      <span>➕ 日付マスをタップでシフト追加</span>
     </div>
   </section>
 
@@ -364,7 +367,7 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
       <button class="btn btn-ghost" onclick="closeModal('shiftModalBg')">キャンセル</button>
       <button class="btn btn-primary" onclick="saveShiftFromModal()">💾 保存</button>
     </div>
-    <div class="hint">保存すると自動でロック🔒されます。時間を変えたいときはチップの🔒をクリックして解除してから。</div>
+    <div class="hint">保存すると自動でロック🔒されます。編集したいときはチップを長押しで解除(黄色枠になったらタップで編集)。</div>
   </div>
 </div>
 
@@ -542,16 +545,18 @@ function renderCalendar(){
 
     let chips = "";
     const dayShifts = state.shifts[k] || {};
-    STAFF.forEach(s=>{
-      const sh = dayShifts[s.id];
-      if(!sh) return;
+    // 開始時間の早い順に並べる(深夜1〜5時開始は25〜29時扱いで最後尾へ)
+    const entries = STAFF.filter(s=>dayShifts[s.id]).map(s=>({s, sh:dayShifts[s.id]}));
+    entries.sort((a,b)=>startMin(a.sh.time)-startMin(b.sh.time));
+    entries.forEach(({s,sh})=>{
       const exc = isException(s.id,k,sh.time);
       const locked = state.globalLock || sh.locked;
       const style = exc ? `background:${s.excBg};color:#fff;border-color:rgba(255,255,255,.5);`
                         : `background:${s.bg};color:${s.color};`;
-      const editable = !locked;
-      chips += `<div class="chip ${exc?"exc":""} ${editable?"editable":""}" style="${style}"
-        onclick="onChipClick(event,'${k}','${s.id}')">
+      chips += `<div class="chip ${exc?"exc":""} ${!locked?"unlocked":""}" style="${style}"
+        onclick="onChipClick(event,'${k}','${s.id}')"
+        onpointerdown="lpStart(event,'${k}','${s.id}')" onpointerup="lpEnd()"
+        onpointerleave="lpEnd()" onpointercancel="lpEnd()" oncontextmenu="return false">
         <span class="em">${s.emoji}</span><span class="nm">${esc(s.name)}</span><span class="tm">${esc(sh.time)}</span>
         <span class="lock ${sh.locked?"":"open"}" title="${state.globalLock?"全体ロック中":sh.locked?"ロック解除":"ロックする"}"
           onclick="onLockClick(event,'${k}','${s.id}')">${locked?"🔒":"🔓"}</span>
@@ -599,23 +604,50 @@ function moveMonth(diff){
   renderCalendar();
 }
 
-function onLockClick(ev,k,sid){
-  ev.stopPropagation();
+// "11:30-20"→690分、"1-5"(深夜25時開始)→1500分。ソート用
+function startMin(t){
+  const m = String(t).match(/^(\d{1,2})(?::(\d{2}))?/);
+  if(!m) return 9999;
+  let h = +m[1]; const mm = +(m[2]||0);
+  if(h < 11) h += 24; // 1〜5時開始は25〜29時扱い
+  return h*60 + mm;
+}
+
+/* ---- 長押しでロック切替(PC・スマホ共通) ---- */
+let lpTimer = null, lpFired = false;
+function lpStart(ev, k, sid){
+  if(ev.target.classList.contains("lock")) return; // 🔒アイコン上はクリック操作優先
+  lpEnd();
+  lpTimer = setTimeout(()=>{
+    lpFired = true;
+    if(navigator.vibrate) navigator.vibrate(30);
+    toggleShiftLock(k, sid);
+  }, 500);
+}
+function lpEnd(){ clearTimeout(lpTimer); lpTimer = null; }
+
+function toggleShiftLock(k, sid){
   if(state.globalLock){ toast("全体ロック中です🔒 先に全体ロックを解除してね"); return; }
   const sh = state.shifts[k]?.[sid];
   if(!sh) return;
   sh.locked = !sh.locked;
   renderAll();
   gasPost({action:"saveShift", date:k, staffId:sid, time:sh.time, locked:sh.locked?"1":"0"});
-  toast(sh.locked ? "ロックしました🔒" : "ロック解除しました🔓");
+  toast(sh.locked ? "ロックしました🔒" : "ロック解除しました💛 タップで編集できます");
+}
+
+function onLockClick(ev,k,sid){
+  ev.stopPropagation();
+  toggleShiftLock(k, sid);
 }
 
 function onChipClick(ev,k,sid){
   ev.stopPropagation();
+  if(lpFired){ lpFired = false; return; } // 長押し直後のクリックは無視
   const sh = state.shifts[k]?.[sid];
   if(!sh) return;
   if(state.globalLock){ toast("全体ロック中です🔒"); return; }
-  if(sh.locked){ toast("ロック中です🔒 鍵をクリックで解除してね"); return; }
+  if(sh.locked){ toast("ロック中です🔒 長押しで解除できます"); return; }
   openShiftModal(k, sid);
 }
 
