@@ -46,10 +46,18 @@ body{
 .header-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .sync-badge{
   font-size:11px;font-weight:700;padding:4px 12px;border-radius:999px;
-  background:#fff;border:1.5px solid var(--line);color:var(--ink-soft);
+  background:#fff;border:1.5px solid var(--line);color:var(--ink-soft);cursor:pointer;
 }
 .sync-badge.ok{color:var(--mint);border-color:#c9f0e4;background:var(--mint-soft);}
 .sync-badge.err{color:#e05c7a;border-color:#ffd3de;background:#fff0f4;}
+.sync-badge.pending{
+  color:#e8590c;border-color:#ffd8a8;background:#fff4e6;
+  animation:pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+#refreshIcon{display:inline-block;}
+#refreshIcon.spinning{animation:spin .8s linear infinite;}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 
 /* ===== buttons ===== */
 .btn{
@@ -305,7 +313,8 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
   <header class="app-header">
     <div class="app-title"><span class="petal">🌸</span>サクラシフト <span style="font-size:13px;background:#ffe3ec;color:var(--sakura-deep);padding:3px 10px;border-radius:999px;">内勤</span></div>
     <div class="header-right">
-      <span class="sync-badge" id="syncBadge">読み込み中…</span>
+      <span class="sync-badge" id="syncBadge" onclick="onBadgeClick()">読み込み中…</span>
+      <button class="btn btn-ghost" id="refreshBtn" onclick="refreshData()"><span id="refreshIcon">🔄</span> 更新</button>
       <button class="btn btn-lock-all" id="globalLockBtn" onclick="toggleGlobalLock()">🔒 全体ロック</button>
       <button class="btn btn-ghost" onclick="window.print()">🖨 印刷</button>
     </div>
@@ -799,12 +808,107 @@ function toast(msg){
 }
 
 /* ================= GAS同期 ================= */
+/* 保存はGASの返事({ok:true})を確認してから成功扱い。
+   失敗分は未送信キューに貯めて、バッジタップ or 更新ボタンで再送。 */
+
+let pendingOps = loadPending();
+function loadPending(){
+  try{ return JSON.parse(localStorage.getItem("naikinPendingOps")||"[]"); }catch(e){ return []; }
+}
+function savePending(){
+  try{ localStorage.setItem("naikinPendingOps", JSON.stringify(pendingOps)); }catch(e){}
+}
+// 同じマスへの操作は最新だけ残す(bulkSaveは対象外)
+function opKey(p){
+  if(p.action==="bulkSave") return null;
+  return [p.action, p.date||"", p.staffId||""].join("|");
+}
+function queueOp(params){
+  const key = opKey(params);
+  if(key) pendingOps = pendingOps.filter(o=>opKey(o.params)!==key);
+  pendingOps.push({params, ts:Date.now()});
+  savePending();
+}
+
+function updateSyncBadge(){
+  const b = $("syncBadge");
+  if(!GAS_URL){ b.textContent="🎀 デモモード(GAS未接続)"; b.className="sync-badge"; return; }
+  if(pendingOps.length){
+    b.textContent = `⚠️ 未送信${pendingOps.length}件 タップで再送`;
+    b.className = "sync-badge pending";
+  }else{
+    b.textContent = "☁️ 同期OK"; b.className = "sync-badge ok";
+  }
+}
 function setSync(mode){
   const b=$("syncBadge");
   if(mode==="demo"){ b.textContent="🎀 デモモード(GAS未接続)"; b.className="sync-badge"; }
-  else if(mode==="ok"){ b.textContent="☁️ 同期OK"; b.className="sync-badge ok"; }
   else if(mode==="saving"){ b.textContent="☁️ 保存中…"; b.className="sync-badge"; }
-  else { b.textContent="⚠️ 接続エラー"; b.className="sync-badge err"; }
+  else if(mode==="loading"){ b.textContent="☁️ 取得中…"; b.className="sync-badge"; }
+  else if(mode==="err"){ b.textContent="⚠️ 接続エラー"; b.className="sync-badge err"; }
+  else { updateSyncBadge(); } // "ok"
+}
+
+function onBadgeClick(){
+  if(!GAS_URL){ toast("デモモードです🎀"); return; }
+  if(pendingOps.length) retryPending();
+  else toast("未送信のデータはありません✨ 全部保存済みです");
+}
+
+async function gasPost(params, isRetry=false){
+  if(!GAS_URL) return true; // デモモード
+  setSync("saving");
+  try{
+    const fd = new FormData();
+    fd.append("token", TOKEN);
+    Object.entries(params).forEach(([k,v])=>fd.append(k,v));
+    const res = await fetch(GAS_URL, {method:"POST", body:fd});
+    const data = await res.json();
+    if(!data || data.ok !== true) throw new Error((data && data.error) || "save failed");
+    // 同じマスの古い未送信があれば片付ける
+    const key = opKey(params);
+    if(key && pendingOps.some(o=>opKey(o.params)===key)){
+      pendingOps = pendingOps.filter(o=>opKey(o.params)!==key);
+      savePending();
+    }
+    updateSyncBadge();
+    return true;
+  }catch(e){
+    console.error("gasPost failed:", e);
+    if(!isRetry){
+      queueOp(params);
+      toast("⚠️ 保存に失敗しました。右上のバッジから再送できます");
+    }
+    updateSyncBadge();
+    return false;
+  }
+}
+
+async function retryPending(){
+  if(!pendingOps.length) return;
+  const ops = [...pendingOps];
+  pendingOps = []; savePending();
+  setSync("saving");
+  let fail = 0;
+  for(const op of ops){
+    const ok = await gasPost(op.params, true);
+    if(!ok){ pendingOps.push(op); fail++; }
+  }
+  savePending();
+  updateSyncBadge();
+  toast(fail ? `⚠️ ${fail}件はまだ送信できませんでした` : "未送信ぶんを全部保存できました🌸");
+}
+
+async function refreshData(){
+  if(!GAS_URL){ toast("デモモードです🎀 GAS未接続なので更新はありません"); return; }
+  const icon = $("refreshIcon"), btn = $("refreshBtn");
+  icon.classList.add("spinning"); btn.disabled = true;
+  // 先に未送信ぶんを再送してから最新を取得
+  if(pendingOps.length) await retryPending();
+  setSync("loading");
+  const ok = await loadFromGAS();
+  icon.classList.remove("spinning"); btn.disabled = false;
+  if(ok && !pendingOps.length) toast("最新のデータを取得しました🌸");
 }
 
 async function loadFromGAS(){
@@ -817,23 +921,16 @@ async function loadFromGAS(){
     STAFF.forEach(s=>{ if(!state.templates[s.id]) state.templates[s.id]=["","","","","","",""]; });
     state.globalLock = data.globalLock === true || data.globalLock === "1";
     setSync("ok");
+    renderAll();
+    return true;
   }catch(e){
     console.error(e); setSync("err");
     toast("データ読み込みに失敗しました😢");
+    renderAll();
+    return false;
   }
-  renderAll();
 }
 
-function gasPost(params){
-  if(!GAS_URL) return; // デモモード
-  setSync("saving");
-  const fd = new FormData();
-  fd.append("token", TOKEN);
-  Object.entries(params).forEach(([k,v])=>fd.append(k,v));
-  fetch(GAS_URL, {method:"POST", mode:"no-cors", body:fd})
-    .then(()=>setSync("ok"))
-    .catch(()=>{ setSync("err"); toast("保存に失敗した可能性があります⚠️"); });
-}
 </script>
 </body>
 </html>
