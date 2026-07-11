@@ -630,7 +630,6 @@ const staffOf = id => STAFF.find(s=>s.id===id);
 const esc = s => String(s??"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
 /* ================= 初期化 ================= */
-init();
 function init(){
   const now = new Date();
   viewYear = now.getFullYear(); viewMonth = now.getMonth();
@@ -1395,6 +1394,8 @@ async function loadFromGAS(){
   }
 }
 
+/* 全部の定義が終わってから起動 */
+init();
 </script>
 </body>
 </html>
