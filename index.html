@@ -639,8 +639,18 @@ function init(){
   buildPresets();
   buildEventUI();
   if(GAS_URL){
-    if(session){ loadFromGAS(); $("logoutBtn").style.display = ""; }
+    if(session){
+      const last = loadLastActivity();
+      if(last && Date.now() - last > IDLE_LIMIT_MS){
+        gasPost({action:"logout"});
+        session = ""; storeSession("");
+        showLogin("30分操作がなかったので自動ログアウトしました🔒");
+      }else{
+        loadFromGAS(); $("logoutBtn").style.display = "";
+      }
+    }
     else showLogin();
+    startIdleWatch();
   } else { loadDemo(); setSync("demo"); renderAll(); }
 }
 
@@ -1041,6 +1051,7 @@ async function doLogin(){
     const data = await res.json();
     if(data && data.ok === true && data.session){
       session = data.session; storeSession(session);
+      touchActivity();
       hideLogin();
       toast("ようこそ🌸");
       if(pendingOps.length) await retryPending();
@@ -1066,6 +1077,36 @@ function doLogout(){
 function handleUnauthorized(){
   session = ""; storeSession("");
   showLogin("セッションが切れました。もう一度ログインしてね");
+}
+
+/* ---- 30分無操作で自動ログアウト ---- */
+const IDLE_LIMIT_MS = 30 * 60 * 1000;
+let lastActivity = Date.now();
+function loadLastActivity(){ try{ return Number(localStorage.getItem("naikinLastActive")) || 0; }catch(e){ return 0; } }
+function touchActivity(){
+  lastActivity = Date.now();
+  try{ localStorage.setItem("naikinLastActive", String(lastActivity)); }catch(e){}
+}
+function startIdleWatch(){
+  ["pointerdown","keydown","touchstart","scroll"].forEach(ev=>
+    window.addEventListener(ev, touchActivity, {passive:true}));
+  touchActivity();
+  setInterval(()=>{
+    if(!session) return;
+    if(Date.now() - lastActivity > IDLE_LIMIT_MS) autoLogout();
+  }, 60 * 1000);
+  // タブを開き直したとき・スマホでアプリに戻ったときも即チェック
+  document.addEventListener("visibilitychange", ()=>{
+    if(document.visibilityState === "visible" && session){
+      const last = loadLastActivity() || lastActivity;
+      if(Date.now() - last > IDLE_LIMIT_MS) autoLogout();
+    }
+  });
+}
+function autoLogout(){
+  gasPost({action:"logout"});   // サーバー側のセッションも無効化
+  session = ""; storeSession("");
+  showLogin("30分操作がなかったので自動ログアウトしました🔒");
 }
 
 /* ================= 予定タブ ================= */
@@ -1335,7 +1376,7 @@ async function gasPost(params, isRetry=false){
     return true;
   }catch(e){
     console.error("gasPost failed:", e);
-    if(!isRetry){
+    if(!isRetry && params.action !== "logout"){
       queueOp(params);
       toast("⚠️ 保存に失敗しました。右上のバッジから再送できます");
     }
