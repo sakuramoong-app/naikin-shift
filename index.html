@@ -1045,7 +1045,7 @@ async function doLogin(){
   btn.disabled = true; btn.textContent = "確認中…";
   try{
     const hash = await sha256(AUTH_SALT + pw);
-    const res = await fetch(GAS_URL, {
+    const res = await fetchT(GAS_URL, {
       method:"POST",
       headers:{"Content-Type":"text/plain;charset=utf-8"}, // preflightを避けて高速化
       body: JSON.stringify({token:TOKEN, action:"login", hash})
@@ -1056,9 +1056,10 @@ async function doLogin(){
       touchActivity();
       hideLogin();
       toast("ようこそ🌸");
+      // ログイン応答にデータ同梱 → 追加取得なしで即表示(2往復→1往復)
+      if(data.data){ applyData(data.data); setSync("ok"); }
+      else { setSync("loading"); await loadFromGAS(); }
       if(pendingOps.length) await retryPending();
-      setSync("loading");
-      await loadFromGAS();
     }else{
       $("loginErr").textContent = "パスワードが違います🥲";
     }
@@ -1355,7 +1356,7 @@ async function gasPost(params, isRetry=false){
   if(!GAS_URL) return true; // デモモード
   setSync("saving");
   try{
-    const res = await fetch(GAS_URL, {
+    const res = await fetchT(GAS_URL, {
       method:"POST",
       headers:{"Content-Type":"text/plain;charset=utf-8"}, // preflightを避けて高速化
       body: JSON.stringify(Object.assign({token:TOKEN, session}, params))
@@ -1414,20 +1415,33 @@ async function refreshData(){
   if(ok && !pendingOps.length) toast("最新のデータを取得しました🌸");
 }
 
+// レスポンスのdataを画面に反映(loadでもloginでも使う)
+function applyData(data){
+  state.shifts = data.shifts || {};
+  state.templates = data.templates || {};
+  STAFF.forEach(s=>{ if(!state.templates[s.id]) state.templates[s.id]=["","","","","","",""]; });
+  state.globalLock = data.globalLock === true || data.globalLock === "1";
+  state.events = Array.isArray(data.events) ? data.events : [];
+  state.notifyEmail = data.notifyEmail || "";
+  renderAll();
+}
+
+// 遅くても成功を拾えるよう長めのタイムアウト(25秒)付きfetch
+async function fetchT(url, opts, ms=25000){
+  const ctl = new AbortController();
+  const t = setTimeout(()=>ctl.abort(), ms);
+  try{ return await fetch(url, Object.assign({signal:ctl.signal}, opts)); }
+  finally{ clearTimeout(t); }
+}
+
 async function loadFromGAS(){
   try{
-    const res = await fetch(`${GAS_URL}?action=load&token=${encodeURIComponent(TOKEN)}&session=${encodeURIComponent(session)}`);
+    const res = await fetchT(`${GAS_URL}?action=load&token=${encodeURIComponent(TOKEN)}&session=${encodeURIComponent(session)}`);
     const data = await res.json();
     if(data.error === "unauthorized"){ handleUnauthorized(); return false; }
     if(data.error) throw new Error(data.error);
-    state.shifts = data.shifts || {};
-    state.templates = data.templates || {};
-    STAFF.forEach(s=>{ if(!state.templates[s.id]) state.templates[s.id]=["","","","","","",""]; });
-    state.globalLock = data.globalLock === true || data.globalLock === "1";
-    state.events = Array.isArray(data.events) ? data.events : [];
-    state.notifyEmail = data.notifyEmail || "";
+    applyData(data);
     setSync("ok");
-    renderAll();
     return true;
   }catch(e){
     console.error(e); setSync("err");
