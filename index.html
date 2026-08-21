@@ -1045,9 +1045,11 @@ async function doLogin(){
   btn.disabled = true; btn.textContent = "確認中…";
   try{
     const hash = await sha256(AUTH_SALT + pw);
-    const fd = new FormData();
-    fd.append("token", TOKEN); fd.append("action", "login"); fd.append("hash", hash);
-    const res = await fetch(GAS_URL, {method:"POST", body:fd});
+    const res = await fetch(GAS_URL, {
+      method:"POST",
+      headers:{"Content-Type":"text/plain;charset=utf-8"}, // preflightを避けて高速化
+      body: JSON.stringify({token:TOKEN, action:"login", hash})
+    });
     const data = await res.json();
     if(data && data.ok === true && data.session){
       session = data.session; storeSession(session);
@@ -1353,11 +1355,11 @@ async function gasPost(params, isRetry=false){
   if(!GAS_URL) return true; // デモモード
   setSync("saving");
   try{
-    const fd = new FormData();
-    fd.append("token", TOKEN);
-    fd.append("session", session);
-    Object.entries(params).forEach(([k,v])=>fd.append(k,v));
-    const res = await fetch(GAS_URL, {method:"POST", body:fd});
+    const res = await fetch(GAS_URL, {
+      method:"POST",
+      headers:{"Content-Type":"text/plain;charset=utf-8"}, // preflightを避けて高速化
+      body: JSON.stringify(Object.assign({token:TOKEN, session}, params))
+    });
     const data = await res.json();
     if(data && data.error === "unauthorized" && params.action !== "logout"){
       queueOp(params);          // ログインし直したら再送できるように保持
