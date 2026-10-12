@@ -569,10 +569,7 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
   <div class="login-card">
     <div class="big">🌸</div>
     <h2>サクラシフト 内勤</h2>
-    <p>パスワードを入力してください</p>
-    <input type="password" id="loginPass" placeholder="パスワード" autocomplete="current-password"
-      onkeydown="if(event.key==='Enter')doLogin()">
-    <button class="btn btn-primary" id="loginBtn" onclick="doLogin()">🔓 ログイン</button>
+    <!-- ★ ポータルからだけ入れる（パスワードでのログインは廃止） -->
     <div class="login-err" id="loginErr"></div>
   </div>
 </div>
@@ -641,18 +638,19 @@ function init(){
   buildPresets();
   buildEventUI();
   if(GAS_URL){
-    if(session){
-      const last = loadLastActivity();
-      if(last && Date.now() - last > IDLE_LIMIT_MS){
-        gasPost({action:"logout"});
-        session = ""; storeSession("");
-        showLogin("30分操作がなかったので自動ログアウトしました🔒");
-      }else{
-        loadFromGAS(); $("logoutBtn").style.display = "";
-      }
+    const sso = takePortalSso();
+    if(session && loadSessionExp() > Date.now()){
+      // すでに入っている（期限内）→ 通行証の確認を省いてすぐ開く
+      loadFromGAS(); $("logoutBtn").style.display = "";
     }
-    else showLogin();
-    startIdleWatch();
+    else if(sso){
+      portalSsoLogin(sso);
+    }
+    else {
+      session = ""; storeSession("");   // 期限切れ・以前の30日ログインは使わない
+      showLogin();
+    }
+    startExpiryWatch();
   } else { loadDemo(); setSync("demo"); renderAll(); }
 }
 
@@ -1017,101 +1015,99 @@ function applyTemplate(sid){
 
 function closeModal(id){ $(id).classList.remove("show"); }
 
-/* ================= 認証 ================= */
-const AUTH_SALT = "sakura-naikin::";
+/* ================= 認証 =================
+   ★ ポータルからだけ入れる（2026/10 パスワードでのログインは廃止）
+   ログインは「ポータルでログインしてから20時間」だけ有効。期限はサーバーから受け取って覚えておく。 */
 let session = loadSession();
 function loadSession(){ try{ return localStorage.getItem("naikinSession") || ""; }catch(e){ return ""; } }
-function storeSession(s){ try{ s ? localStorage.setItem("naikinSession", s) : localStorage.removeItem("naikinSession"); }catch(e){} }
-
-async function sha256(str){
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
-  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
+function loadSessionExp(){ try{ return Number(localStorage.getItem("naikinSessionExp")) || 0; }catch(e){ return 0; } }
+function storeSession(s, exp){
+  try{
+    if(s){
+      localStorage.setItem("naikinSession", s);
+      localStorage.setItem("naikinSessionExp", String(exp || 0));
+    }else{
+      localStorage.removeItem("naikinSession");
+      localStorage.removeItem("naikinSessionExp");
+    }
+  }catch(e){}
 }
 
 function showLogin(msg){
   $("loginBg").classList.add("show");
-  $("loginErr").textContent = msg || "";
+  $("loginErr").textContent = msg || "ポータルから開いてください";
   $("logoutBtn").style.display = "none";
-  setTimeout(()=>$("loginPass").focus(), 50);
 }
 function hideLogin(){
   $("loginBg").classList.remove("show");
-  $("loginPass").value = "";
   $("logoutBtn").style.display = "";
 }
 
-async function doLogin(){
-  const pw = $("loginPass").value;
-  if(!pw){ $("loginErr").textContent = "パスワードを入力してね"; return; }
-  const btn = $("loginBtn");
-  btn.disabled = true; btn.textContent = "確認中…";
+/* ---- 統合ポータルからのログイン ----
+   ポータルは「index.html#portalSso=…&operator=名前」で開く。
+   # 以降はサーバーに送られない。読んだらすぐURLから消す。 */
+function takePortalSso(){
+  if(location.hash.indexOf("portalSso=") < 0) return null;
+  const hp = new URLSearchParams(location.hash.slice(1));
+  const ssoToken = hp.get("portalSso") || "";
+  const operator = hp.get("operator") || "";
+  history.replaceState(null, "", location.pathname + location.search);
+  return (ssoToken && operator) ? {ssoToken, operator} : null;
+}
+
+async function portalSsoLogin(sso){
+  showLogin("ポータルから入っています…⏳");
   try{
-    const hash = await sha256(AUTH_SALT + pw);
+    // ※ 通行証は1回しか使えないので、失敗しても送り直さない
     const res = await fetchT(GAS_URL, {
       method:"POST",
-      headers:{"Content-Type":"text/plain;charset=utf-8"}, // preflightを避けて高速化
-      body: JSON.stringify({token:TOKEN, action:"login", hash})
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify({token:TOKEN, action:"ssoLogin", ssoToken:sso.ssoToken, operator:sso.operator})
     });
     const data = await res.json();
     if(data && data.ok === true && data.session){
-      session = data.session; storeSession(session);
-      touchActivity();
+      session = data.session;
+      storeSession(session, Number(data.expiresAt) || (Date.now() + 20*60*60*1000));
       hideLogin();
       toast("ようこそ🌸");
-      // ログイン応答にデータ同梱 → 追加取得なしで即表示(2往復→1往復)
       if(data.data){ applyData(data.data); setSync("ok"); }
       else { setSync("loading"); await loadFromGAS(); }
       if(pendingOps.length) await retryPending();
-    }else{
-      $("loginErr").textContent = "パスワードが違います🥲";
+      return;
     }
   }catch(e){
     console.error(e);
-    $("loginErr").textContent = "通信エラーです。少し待ってもう一度";
   }
-  btn.disabled = false; btn.textContent = "🔓 ログイン";
+  session = ""; storeSession("");
+  $("loginErr").textContent = "入れませんでした。ポータルからもう一度開いてください";
 }
 
 function doLogout(){
   if(!confirm("ログアウトしますか?")) return;
   gasPost({action:"logout"});
   session = ""; storeSession("");
-  showLogin();
+  showLogin("ログアウトしました。ポータルから開いてください");
 }
 
 function handleUnauthorized(){
   session = ""; storeSession("");
-  showLogin("セッションが切れました。もう一度ログインしてね");
+  showLogin("ログインの期限が切れました。ポータルから開き直してください");
 }
 
-/* ---- 30分無操作で自動ログアウト ---- */
-const IDLE_LIMIT_MS = 30 * 60 * 1000;
-let lastActivity = Date.now();
-function loadLastActivity(){ try{ return Number(localStorage.getItem("naikinLastActive")) || 0; }catch(e){ return 0; } }
-function touchActivity(){
-  lastActivity = Date.now();
-  try{ localStorage.setItem("naikinLastActive", String(lastActivity)); }catch(e){}
-}
-function startIdleWatch(){
-  ["pointerdown","keydown","touchstart","scroll"].forEach(ev=>
-    window.addEventListener(ev, touchActivity, {passive:true}));
-  touchActivity();
-  setInterval(()=>{
+/* ---- ポータルでログインしてから20時間で自動ログアウト ----
+   スリープ中に時刻を過ぎることもあるので、1分ごとと画面に戻ったときに確かめる。 */
+function startExpiryWatch(){
+  const check = ()=>{
     if(!session) return;
-    if(Date.now() - lastActivity > IDLE_LIMIT_MS) autoLogout();
-  }, 60 * 1000);
-  // タブを開き直したとき・スマホでアプリに戻ったときも即チェック
-  document.addEventListener("visibilitychange", ()=>{
-    if(document.visibilityState === "visible" && session){
-      const last = loadLastActivity() || lastActivity;
-      if(Date.now() - last > IDLE_LIMIT_MS) autoLogout();
+    if(Date.now() >= loadSessionExp()){
+      session = ""; storeSession("");   // サーバー側も同じ時刻に切れている
+      showLogin("ポータルでログインしてから20時間たったので、ログアウトしました。ポータルから開き直してください");
     }
+  };
+  setInterval(check, 60 * 1000);
+  document.addEventListener("visibilitychange", ()=>{
+    if(document.visibilityState === "visible") check();
   });
-}
-function autoLogout(){
-  gasPost({action:"logout"});   // サーバー側のセッションも無効化
-  session = ""; storeSession("");
-  showLogin("30分操作がなかったので自動ログアウトしました🔒");
 }
 
 /* ================= 予定タブ ================= */
