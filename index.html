@@ -300,6 +300,19 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
   cursor:pointer;user-select:none;-webkit-user-select:none;
 }
 .echip:hover{filter:brightness(.97);}
+.echip.more{background:#fff;border:1.5px dashed #ffc2d1;color:var(--sakura-deep);justify-content:center;}
+.day-ev{border-radius:14px;padding:10px 12px;margin-bottom:8px;cursor:pointer;}
+.day-ev:hover{filter:brightness(.97);}
+.day-ev-top{display:flex;align-items:center;gap:6px;font-size:14px;}
+.day-ev-top b{flex:1;min-width:0;}
+.day-ev-sub{font-size:12px;font-weight:700;opacity:.85;margin-top:3px;white-space:pre-wrap;}
+.day-ev-empty{text-align:center;color:var(--ink-soft);font-size:13px;font-weight:700;padding:18px 0;}
+.add-shift-btn{
+  margin-left:auto;font-family:inherit;font-size:11px;font-weight:800;line-height:1;
+  border:1.5px dashed #ffc2d1;background:#fff;color:var(--sakura-deep);border-radius:999px;padding:3px 7px;cursor:pointer;
+}
+.add-shift-btn:hover{background:#fff5f8;}
+.shift-note{font-size:12px;font-weight:700;color:var(--sakura-deep);margin-top:6px;min-height:1em;}
 .echip .ems{flex:none;font-size:11px;letter-spacing:-2px;margin-right:2px;}
 .echip .ttl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .echip .bell{flex:none;font-size:9px;}
@@ -439,7 +452,7 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
       <span>✋ チップ長押しでロック解除⇔ロック</span>
       <span>💛 黄色枠 = 解除中(タップで編集OK)</span>
       <span>⭐ 例外シフト(テンプレと違う時間)</span>
-      <span>➕ 日付マスをタップでシフト追加</span>
+      <span>➕ 日付の「＋」かマスをタップで、その日だけのシフトを追加・変更（テンプレの一括はそのまま）</span>
     </div>
   </section>
   </div><!-- /shiftTab -->
@@ -462,11 +475,23 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
     <div class="legend">
       <span>🌸 全員周知の予定</span>
       <span>🔔 メール通知あり</span>
-      <span>➕ 日付マスをタップで予定追加・チップタップで編集</span>
+      <span>➕ 日付マスをタップでその日の予定一覧（追加もここから）・チップタップで編集</span>
     </div>
   </section>
   </div><!-- /eventTab -->
 
+</div>
+
+<!-- その日の予定一覧モーダル -->
+<div class="modal-bg" id="dayModalBg" onclick="if(event.target===this)closeModal('dayModalBg')">
+  <div class="modal">
+    <h3 id="dayModalTitle">予定</h3>
+    <div id="dayModalList"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('dayModalBg')">閉じる</button>
+      <button class="btn btn-primary" id="dayModalAdd">＋ 予定を追加</button>
+    </div>
+  </div>
 </div>
 
 <!-- シフト編集モーダル -->
@@ -474,8 +499,9 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
   <div class="modal">
     <h3 id="shiftModalTitle">シフト編集</h3>
     <div class="field">
-      <label>スタッフ</label>
-      <select id="shiftStaff"></select>
+      <label>スタッフ（その日にシフトがある人を選ぶと、今の時間が出ます）</label>
+      <select id="shiftStaff" onchange="onShiftStaffChange()"></select>
+      <div class="shift-note" id="shiftNote"></div>
     </div>
     <div class="field">
       <label>時間(深夜は 1〜5 表記 / 例: 19〜5)</label>
@@ -779,7 +805,7 @@ function renderCalendar(){
     });
 
     html += `<div class="${cls.join(" ")}" onclick="openShiftModal('${k}')">
-      <div class="date-num">${d}<span class="dow-label">(${DOW[dow]})</span>${isHoliday?'<span class="holiday-tag">祝</span>':""}</div>
+      <div class="date-num">${d}<span class="dow-label">(${DOW[dow]})</span>${isHoliday?'<span class="holiday-tag">祝</span>':""}<button type="button" class="add-shift-btn" title="この日にシフトを追加" onclick="event.stopPropagation();openShiftModal('${k}')">＋</button></div>
       <div class="chips">${chips}</div></div>`;
   }
   grid.innerHTML = html;
@@ -800,7 +826,7 @@ function buildStaffButtons(){
   ).join("");
 }
 function buildStaffSelect(){
-  $("shiftStaff").innerHTML = STAFF.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("");
+  $("shiftStaff").innerHTML = STAFF.map(s=>`<option value="${s.id}">${s.emoji} ${esc(s.name)}</option>`).join("");
 }
 function buildPresets(){
   $("shiftStart").innerHTML = timeOptionsHtml("開始");
@@ -875,25 +901,48 @@ function openShiftModal(k, sid){
   if(sid){
     $("shiftStaff").value = sid;
     $("shiftStaff").disabled = true;
-    const [a,b] = splitTime(state.shifts[k][sid].time);
-    $("shiftStart").value = a; $("shiftEnd").value = b;
-    $("shiftDeleteBtn").style.display = "";
   }else{
+    // その日だけのシフト追加・変更：スタッフを選び直せる（すでにある人は今の時間が出る）
     $("shiftStaff").disabled = false;
-    $("shiftStart").value = ""; $("shiftEnd").value = "";
-    $("shiftDeleteBtn").style.display = "none";
+    const first = STAFF.find(s=>!(state.shifts[k]||{})[s.id]) || STAFF[0];
+    $("shiftStaff").value = first.id;
   }
+  onShiftStaffChange();
   $("shiftModalBg").classList.add("show");
 }
 
-function saveShiftFromModal(){
+// スタッフを選んだら、その日のシフトがあれば今の時間を出す
+function onShiftStaffChange(){
+  const k = editing.date, sid = $("shiftStaff").value;
+  const sh = (state.shifts[k]||{})[sid];
+  if(sh){
+    const [a,b] = splitTime(sh.time);
+    $("shiftStart").value = a; $("shiftEnd").value = b;
+    $("shiftDeleteBtn").style.display = "";
+    editing.staffId = sid;
+    $("shiftNote").textContent = sh.locked
+      ? `🔒 ロック中のシフトです（${sh.time}）。保存すると上書きします`
+      : `今のシフト：${sh.time}`;
+  }else{
+    $("shiftStart").value = ""; $("shiftEnd").value = "";
+    $("shiftDeleteBtn").style.display = "none";
+    editing.staffId = null;
+    $("shiftNote").textContent = "この日はまだシフトがありません（新しく追加します）";
+  }
+}
+
+async function saveShiftFromModal(){
   const sid = $("shiftStaff").value;
   const a = $("shiftStart").value, b = $("shiftEnd").value;
   if(!a || !b){ toast("開始と終了を選んでね⏰"); return; }
   const time = `${a}-${b}`;
   const k = editing.date;
   const existed = state.shifts[k]?.[sid];
-  if(existed && existed.locked && editing.staffId!==sid){ toast(`${staffOf(sid).name}さんはロック中です🔒`); return; }
+  if(existed && existed.locked && existed.time !== time){
+    if(!confirm(`${staffOf(sid).name}さんのこの日のシフトはロック中です🔒\n${existed.time} → ${time} に上書きしますか？`)) return;
+    // ロック中のままでは時間を変えられない決まりなので、いったん外して書きかえてから、もう一度ロックする
+    if(!(await gasPost({action:"saveShift", date:k, staffId:sid, time, locked:"0"}))) return;
+  }
   (state.shifts[k] ??= {})[sid] = {time, locked:true}; // 保存したら自動ロック
   closeModal("shiftModalBg");
   renderAll();
@@ -901,9 +950,14 @@ function saveShiftFromModal(){
   toast("保存してロックしました🔒✨");
 }
 
-function deleteShift(){
+async function deleteShift(){
   const k = editing.date, sid = editing.staffId;
   if(!sid) return;
+  const sh = state.shifts[k]?.[sid];
+  if(!sh) return;
+  if(!confirm(`${staffOf(sid).name}さんの ${sh.time} のシフトを削除しますか？`)) return;
+  // ロック中は消せない決まりなので、いったん外してから消す
+  if(sh.locked && !(await gasPost({action:"saveShift", date:k, staffId:sid, time:sh.time, locked:"0"}))) return;
   delete state.shifts[k][sid];
   if(Object.keys(state.shifts[k]).length===0) delete state.shifts[k];
   closeModal("shiftModalBg");
@@ -1142,19 +1196,42 @@ function renderEvents(){
 
     const dayEvents = state.events.filter(e=>e.date===k).sort((a,b)=>evSortKey(a)-evSortKey(b));
     let chips = "";
-    dayEvents.forEach(ev=>{
+    // マスには3件まで。4件目からは「＋○件」にまとめる（マスを押すとその日の予定が全部見られる）
+    const MAX_CHIPS = 3;
+    const shown = dayEvents.length > MAX_CHIPS ? dayEvents.slice(0, MAX_CHIPS - 1) : dayEvents;
+    shown.forEach(ev=>{
       const label = (ev.time ? ev.time+" " : "") + ev.title;
       chips += `<div class="echip" style="${evStyle(ev.members)}"
         onclick="event.stopPropagation();openEventModal('${k}','${ev.id}')">
         <span class="ems">${evEmojis(ev.members)}</span><span class="ttl">${esc(label)}</span>${ev.notifyAt?'<span class="bell">🔔</span>':""}
       </div>`;
     });
+    if(dayEvents.length > shown.length){
+      chips += `<div class="echip more">＋${dayEvents.length - shown.length}件</div>`;
+    }
 
-    html += `<div class="${cls.join(" ")}" onclick="openEventModal('${k}')">
+    html += `<div class="${cls.join(" ")}" onclick="openDayEvents('${k}')">
       <div class="date-num">${d}<span class="dow-label">(${DOW[dow]})</span>${isHoliday?'<span class="holiday-tag">祝</span>':""}</div>
       <div class="chips">${chips}</div></div>`;
   }
   grid.innerHTML = html;
+}
+
+/* ---- その日の予定を全部見る（マスの空いているところを押したとき） ---- */
+function openDayEvents(k){
+  const list = state.events.filter(e=>e.date===k).sort((a,b)=>evSortKey(a)-evSortKey(b));
+  const d = new Date(k+"T00:00:00");
+  $("dayModalTitle").textContent = `📌 ${d.getMonth()+1}/${d.getDate()}(${DOW[d.getDay()]}) の予定`;
+  $("dayModalList").innerHTML = list.length ? list.map(ev=>{
+    const members = ev.members.includes("all") ? "全員" : ev.members.map(id=>staffOf(id)?.name||"").filter(Boolean).join("・");
+    return `<div class="day-ev" style="${evStyle(ev.members)}" onclick="closeModal('dayModalBg');openEventModal('${k}','${ev.id}')">
+      <div class="day-ev-top"><span>${evEmojis(ev.members)}</span><b>${esc(ev.title)}</b>${ev.notifyAt?'<span>🔔</span>':""}</div>
+      <div class="day-ev-sub">${ev.time ? "⏰ "+esc(ev.time) : "終日"}${members ? "　👥 "+esc(members) : ""}</div>
+      ${ev.memo ? `<div class="day-ev-sub">📝 ${esc(ev.memo)}</div>` : ""}
+    </div>`;
+  }).join("") : `<div class="day-ev-empty">この日の予定はまだありません</div>`;
+  $("dayModalAdd").onclick = ()=>{ closeModal("dayModalBg"); openEventModal(k); };
+  $("dayModalBg").classList.add("show");
 }
 
 /* ---- 予定モーダル ---- */
