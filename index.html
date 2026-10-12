@@ -389,6 +389,7 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
   .cal-cell{min-height:90px;}
 }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div class="wrap">
@@ -578,8 +579,11 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
 
 <script>
 /* ================= 設定 ================= */
-const GAS_URL = "https://script.google.com/macros/s/AKfycbxbUSbf976-6waIyLoOevYmqsDELU652-cNqB95oNQerrnE-2b7gww_gu6xQ6NM23g/exec";          // ← デプロイしたGASのURLを入れる(空ならデモモード)
-const TOKEN   = "sakura2026naikin";
+// ★ データの置き場所：Supabase（2026/10 GAS から引っ越し）
+//   ポータルと同じプロジェクト。公開用のキーなので、ここに書いて大丈夫（読み書きの可否は Supabase 側の鍵で決まる）
+const SUPABASE_URL = "https://tuxqpqokbvkrckgxcfdn.supabase.co";
+const SUPABASE_KEY = "sb_publishable_PyvCZHSzYlaqauYbdZybng_zbftghak";
+const BACKEND_ON = !!SUPABASE_URL;   // 空ならデモモード
 
 const STAFF = [
   {id:"kya",  name:"きゃ", emoji:"🧡", color:"#e8590c", bg:"#ffe8dd", excBg:"linear-gradient(135deg,#ffb37a,#ff8c42)"},
@@ -637,19 +641,9 @@ function init(){
   buildStaffSelect();
   buildPresets();
   buildEventUI();
-  if(GAS_URL){
-    const sso = takePortalSso();
-    if(session && loadSessionExp() > Date.now()){
-      // すでに入っている（期限内）→ 通行証の確認を省いてすぐ開く
-      loadFromGAS(); $("logoutBtn").style.display = "";
-    }
-    else if(sso){
-      portalSsoLogin(sso);
-    }
-    else {
-      session = ""; storeSession("");   // 期限切れ・以前の30日ログインは使わない
-      showLogin();
-    }
+  if(BACKEND_ON){
+    try{ localStorage.removeItem("naikinSession"); localStorage.removeItem("naikinSessionExp"); }catch(e){}   // GAS 版のログインはもう使わない
+    startAuth();
     startExpiryWatch();
   } else { loadDemo(); setSync("demo"); renderAll(); }
 }
@@ -1016,22 +1010,36 @@ function applyTemplate(sid){
 function closeModal(id){ $(id).classList.remove("show"); }
 
 /* ================= 認証 =================
-   ★ ポータルからだけ入れる（2026/10 パスワードでのログインは廃止）
-   ログインは「ポータルでログインしてから20時間」だけ有効。期限はサーバーから受け取って覚えておく。 */
-let session = loadSession();
-function loadSession(){ try{ return localStorage.getItem("naikinSession") || ""; }catch(e){ return ""; } }
-function loadSessionExp(){ try{ return Number(localStorage.getItem("naikinSessionExp")) || 0; }catch(e){ return 0; } }
-function storeSession(s, exp){
+   ★ ポータルのログインをそのまま使う（2026/10 Supabase 版）
+   ポータルとこのアプリは同じサイト（sakuramoong-app.github.io）にあるので、
+   ポータルでログインしていれば、このアプリでも同じログインが使える。
+   読み書きできるのは「内勤アカウントで、ポータルでログインしてから 20 時間以内」だけ
+   （同じ決まりを Supabase 側の鍵（RLS）でも確かめている）。 */
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const STAFF_EMAIL = "naikin@sakuramoong.internal";
+const SESSION_HOURS = 20;
+let authSession = null;
+
+// ポータルでログインした時刻（秒）。amr はトークンを更新しても変わらない
+function loginAtSec(accessToken){
   try{
-    if(s){
-      localStorage.setItem("naikinSession", s);
-      localStorage.setItem("naikinSessionExp", String(exp || 0));
-    }else{
-      localStorage.removeItem("naikinSession");
-      localStorage.removeItem("naikinSessionExp");
-    }
-  }catch(e){}
+    let p = accessToken.split(".")[1].replace(/-/g,"+").replace(/_/g,"/");
+    while(p.length % 4) p += "=";
+    const amr = JSON.parse(atob(p)).amr || [];
+    const pw = amr.filter(a=>a.method==="password").map(a=>a.timestamp);
+    const all = amr.map(a=>a.timestamp).filter(Boolean);
+    return pw.length ? Math.max(...pw) : (all.length ? Math.min(...all) : 0);
+  }catch(e){ return 0; }
 }
+function sessionExpiresAt(s){
+  const at = s ? loginAtSec(s.access_token) : 0;
+  return at ? (at + SESSION_HOURS*3600) * 1000 : 0;
+}
+function isStaffSession(s){
+  return !!s && s.user && s.user.email === STAFF_EMAIL && Date.now() < sessionExpiresAt(s);
+}
+// 操作した内勤の名前（ポータルで選んだ担当者）
+function operatorName(){ try{ return localStorage.getItem("currentOperator") || ""; }catch(e){ return ""; } }
 
 function showLogin(msg){
   $("loginBg").classList.add("show");
@@ -1043,64 +1051,45 @@ function hideLogin(){
   $("logoutBtn").style.display = "";
 }
 
-/* ---- 統合ポータルからのログイン ----
-   ポータルは「index.html#portalSso=…&operator=名前」で開く。
-   # 以降はサーバーに送られない。読んだらすぐURLから消す。 */
-function takePortalSso(){
-  if(location.hash.indexOf("portalSso=") < 0) return null;
-  const hp = new URLSearchParams(location.hash.slice(1));
-  const ssoToken = hp.get("portalSso") || "";
-  const operator = hp.get("operator") || "";
-  history.replaceState(null, "", location.pathname + location.search);
-  return (ssoToken && operator) ? {ssoToken, operator} : null;
+// ポータルから付いてくる「#portalSso=…」は、もう使わないので消すだけ
+function stripPortalHash(){
+  if(location.hash.indexOf("portalSso=") >= 0){
+    history.replaceState(null, "", location.pathname + location.search);
+  }
 }
 
-async function portalSsoLogin(sso){
-  showLogin("ポータルから入っています…⏳");
-  try{
-    // ※ 通行証は1回しか使えないので、失敗しても送り直さない
-    const res = await fetchT(GAS_URL, {
-      method:"POST",
-      headers:{"Content-Type":"text/plain;charset=utf-8"},
-      body: JSON.stringify({token:TOKEN, action:"ssoLogin", ssoToken:sso.ssoToken, operator:sso.operator})
-    });
-    const data = await res.json();
-    if(data && data.ok === true && data.session){
-      session = data.session;
-      storeSession(session, Number(data.expiresAt) || (Date.now() + 20*60*60*1000));
-      hideLogin();
-      toast("ようこそ🌸");
-      if(data.data){ applyData(data.data); setSync("ok"); }
-      else { setSync("loading"); await loadFromGAS(); }
-      if(pendingOps.length) await retryPending();
-      return;
-    }
-  }catch(e){
-    console.error(e);
+async function startAuth(){
+  stripPortalHash();
+  const { data } = await sb.auth.getSession();
+  authSession = data.session;
+  if(isStaffSession(authSession)){
+    hideLogin();
+    setSync("loading");
+    await loadFromDB();
+    if(pendingOps.length) await retryPending();
+  }else{
+    showLogin();
   }
-  session = ""; storeSession("");
-  $("loginErr").textContent = "入れませんでした。ポータルからもう一度開いてください";
 }
 
 function doLogout(){
-  if(!confirm("ログアウトしますか?")) return;
-  gasPost({action:"logout"});
-  session = ""; storeSession("");
-  showLogin("ログアウトしました。ポータルから開いてください");
+  if(!confirm("ログアウトしますか?\n（ポータルからもログアウトします）")) return;
+  sb.auth.signOut().finally(()=>{
+    authSession = null;
+    showLogin("ログアウトしました。ポータルから開いてください");
+  });
 }
 
 function handleUnauthorized(){
-  session = ""; storeSession("");
   showLogin("ログインの期限が切れました。ポータルから開き直してください");
 }
 
 /* ---- ポータルでログインしてから20時間で自動ログアウト ----
    スリープ中に時刻を過ぎることもあるので、1分ごとと画面に戻ったときに確かめる。 */
 function startExpiryWatch(){
+  sb.auth.onAuthStateChange((_event, s)=>{ authSession = s; });
   const check = ()=>{
-    if(!session) return;
-    if(Date.now() >= loadSessionExp()){
-      session = ""; storeSession("");   // サーバー側も同じ時刻に切れている
+    if(!$("loginBg").classList.contains("show") && !isStaffSession(authSession)){
       showLogin("ポータルでログインしてから20時間たったので、ログアウトしました。ポータルから開き直してください");
     }
   };
@@ -1302,9 +1291,9 @@ function toast(msg){
   clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"),2400);
 }
 
-/* ================= GAS同期 ================= */
-/* 保存はGASの返事({ok:true})を確認してから成功扱い。
-   失敗分は未送信キューに貯めて、バッジタップ or 更新ボタンで再送。 */
+/* ================= Supabase 同期 ================= */
+/* 保存は Supabase の返事を確認してから成功扱い。
+   失敗分は未送信キューに貯めて、バッジタップ or 更新ボタンで再送。（GAS 版と同じ） */
 
 let pendingOps = loadPending();
 function loadPending(){
@@ -1316,7 +1305,7 @@ function savePending(){
 // 同じマスへの操作は最新だけ残す(bulkSaveは対象外)
 function opKey(p){
   if(p.action==="bulkSave") return null;
-  return [p.action, p.date||"", p.staffId||""].join("|");
+  return [p.action, p.date||"", p.staffId||"", p.id||""].join("|");
 }
 function queueOp(params){
   const key = opKey(params);
@@ -1327,7 +1316,7 @@ function queueOp(params){
 
 function updateSyncBadge(){
   const b = $("syncBadge");
-  if(!GAS_URL){ b.textContent="🎀 デモモード(GAS未接続)"; b.className="sync-badge"; return; }
+  if(!BACKEND_ON){ b.textContent="🎀 デモモード"; b.className="sync-badge"; return; }
   if(pendingOps.length){
     b.textContent = `⚠️ 未送信${pendingOps.length}件 タップで再送`;
     b.className = "sync-badge pending";
@@ -1337,7 +1326,7 @@ function updateSyncBadge(){
 }
 function setSync(mode){
   const b=$("syncBadge");
-  if(mode==="demo"){ b.textContent="🎀 デモモード(GAS未接続)"; b.className="sync-badge"; }
+  if(mode==="demo"){ b.textContent="🎀 デモモード"; b.className="sync-badge"; }
   else if(mode==="saving"){ b.textContent="☁️ 保存中…"; b.className="sync-badge"; }
   else if(mode==="loading"){ b.textContent="☁️ 取得中…"; b.className="sync-badge"; }
   else if(mode==="err"){ b.textContent="⚠️ 接続エラー"; b.className="sync-badge err"; }
@@ -1345,28 +1334,89 @@ function setSync(mode){
 }
 
 function onBadgeClick(){
-  if(!GAS_URL){ toast("デモモードです🎀"); return; }
+  if(!BACKEND_ON){ toast("デモモードです🎀"); return; }
   if(pendingOps.length) retryPending();
   else toast("未送信のデータはありません✨ 全部保存済みです");
 }
 
+// ログインが無い・期限切れ・鍵で断られた
+function isAuthError(err){
+  if(!err) return false;
+  const c = String(err.code || ""), s = Number(err.status || 0);
+  return c === "42501" || c === "PGRST301" || c === "PGRST303" || s === 401 || s === 403;
+}
+function throwIf(res){ if(res && res.error) throw res.error; return res; }
+
+const nowIso = () => new Date().toISOString();
+function shiftRow(date, staffId, time, locked){
+  return { date, staff_id: staffId, time, locked: locked === "1" || locked === true,
+           updated_at: nowIso(), updated_by: operatorName() };
+}
+
+// 1つの操作を Supabase に書く（GAS 版の action と同じ名前）
+async function dbWrite(p){
+  const by = operatorName();
+  switch(p.action){
+    case "saveShift":
+      throwIf(await sb.from("naikin_shifts").upsert(shiftRow(p.date, p.staffId, p.time, p.locked)));
+      return `${p.date} ${p.staffId} ${p.time} lock=${p.locked}`;
+    case "deleteShift":
+      throwIf(await sb.from("naikin_shifts").delete().eq("date", p.date).eq("staff_id", p.staffId));
+      return `${p.date} ${p.staffId}`;
+    case "bulkSave": {
+      const items = JSON.parse(p.data || "[]");
+      const ups = items.filter(it=>it.del!=="1").map(it=>shiftRow(it.date, it.staffId, it.time, it.locked));
+      const dels = items.filter(it=>it.del==="1");
+      if(ups.length) throwIf(await sb.from("naikin_shifts").upsert(ups));
+      for(const d of dels){
+        throwIf(await sb.from("naikin_shifts").delete().eq("date", d.date).eq("staff_id", d.staffId));
+      }
+      return `${items.length}件`;
+    }
+    case "saveTemplate": {
+      const arr = JSON.parse(p.data || "[]").slice(0,7).map(t=>String(t||""));
+      while(arr.length < 7) arr.push("");
+      throwIf(await sb.from("naikin_templates").upsert({ staff_id: p.staffId, days: arr, updated_at: nowIso(), updated_by: by }));
+      return p.staffId;
+    }
+    case "setGlobalLock":
+      throwIf(await sb.from("naikin_settings").upsert({ key:"globalLock", value: p.value === "1" ? "1" : "0", updated_at: nowIso(), updated_by: by }));
+      return p.value;
+    case "setNotifyEmail":
+      throwIf(await sb.from("naikin_settings").upsert({ key:"notifyEmail", value: String(p.value||"").slice(0,100), updated_at: nowIso(), updated_by: by }));
+      return p.value;
+    case "saveEvent":
+      throwIf(await sb.from("naikin_events").upsert({
+        id: p.id, date: p.date, time: p.time || "", title: String(p.title||"").slice(0,40),
+        members: String(p.members||"").split(",").filter(Boolean),
+        memo: String(p.memo||"").slice(0,200),
+        notify_at: p.notifyAt ? p.notifyAt.replace(" ", "T") : null,
+        updated_at: nowIso(), updated_by: by
+      }));
+      return `${p.id} ${p.date} ${p.title}`;
+    case "deleteEvent":
+      throwIf(await sb.from("naikin_events").delete().eq("id", p.id));
+      return p.id;
+    case "logout":
+      return null;
+    default:
+      throw new Error("unknown action: " + p.action);
+  }
+}
+
+// 名前は GAS 版のまま（画面のあちこちから呼ばれているため）
 async function gasPost(params, isRetry=false){
-  if(!GAS_URL) return true; // デモモード
+  if(!BACKEND_ON) return true; // デモモード
+  if(params.action === "logout") return true;
   setSync("saving");
   try{
-    const res = await fetchT(GAS_URL, {
-      method:"POST",
-      headers:{"Content-Type":"text/plain;charset=utf-8"}, // preflightを避けて高速化
-      body: JSON.stringify(Object.assign({token:TOKEN, session}, params))
-    });
-    const data = await res.json();
-    if(data && data.error === "unauthorized" && params.action !== "logout"){
-      queueOp(params);          // ログインし直したら再送できるように保持
-      handleUnauthorized();
-      updateSyncBadge();
-      return false;
+    if(!isStaffSession(authSession)){
+      const e = new Error("no session"); e.status = 401; throw e;
     }
-    if(!data || data.ok !== true) throw new Error((data && data.error) || "save failed");
+    const detail = await dbWrite(params);
+    // 操作の記録（失敗しても保存そのものは成功扱い）
+    sb.from("naikin_logs").insert({ action: params.action, detail: String(detail||"").slice(0,500), operator: operatorName() })
+      .then(()=>{}, ()=>{});
     // 同じマスの古い未送信があれば片付ける
     const key = opKey(params);
     if(key && pendingOps.some(o=>opKey(o.params)===key)){
@@ -1376,10 +1426,18 @@ async function gasPost(params, isRetry=false){
     updateSyncBadge();
     return true;
   }catch(e){
-    console.error("gasPost failed:", e);
-    if(!isRetry && params.action !== "logout"){
+    console.error("保存に失敗:", e);
+    if(isAuthError(e)){
+      queueOp(params);          // ログインし直したら再送できるように保持
+      handleUnauthorized();
+      updateSyncBadge();
+      return false;
+    }
+    if(!isRetry){
       queueOp(params);
-      toast("⚠️ 保存に失敗しました。右上のバッジから再送できます");
+      toast(String(e.message||"").indexOf("ロック中") >= 0
+        ? "🔒 ロック中のシフトは変更できません"
+        : "⚠️ 保存に失敗しました。右上のバッジから再送できます");
     }
     updateSyncBadge();
     return false;
@@ -1402,18 +1460,18 @@ async function retryPending(){
 }
 
 async function refreshData(){
-  if(!GAS_URL){ toast("デモモードです🎀 GAS未接続なので更新はありません"); return; }
+  if(!BACKEND_ON){ toast("デモモードです🎀"); return; }
   const icon = $("refreshIcon"), btn = $("refreshBtn");
   icon.classList.add("spinning"); btn.disabled = true;
   // 先に未送信ぶんを再送してから最新を取得
   if(pendingOps.length) await retryPending();
   setSync("loading");
-  const ok = await loadFromGAS();
+  const ok = await loadFromDB();
   icon.classList.remove("spinning"); btn.disabled = false;
   if(ok && !pendingOps.length) toast("最新のデータを取得しました🌸");
 }
 
-// レスポンスのdataを画面に反映(loadでもloginでも使う)
+// 読み込んだデータを画面に反映
 function applyData(data){
   state.shifts = data.shifts || {};
   state.templates = data.templates || {};
@@ -1424,25 +1482,48 @@ function applyData(data){
   renderAll();
 }
 
-// 遅くても成功を拾えるよう長めのタイムアウト(25秒)付きfetch
-async function fetchT(url, opts, ms=25000){
-  const ctl = new AbortController();
-  const t = setTimeout(()=>ctl.abort(), ms);
-  try{ return await fetch(url, Object.assign({signal:ctl.signal}, opts)); }
-  finally{ clearTimeout(t); }
+// 1回に返せる件数に上限（1000件）があるので、全部そろうまで続けて読む
+async function selectAll(table, columns, orderCol){
+  const out = [];
+  for(let from = 0; ; from += 1000){
+    const res = throwIf(await sb.from(table).select(columns).order(orderCol).range(from, from + 999));
+    out.push(...res.data);
+    if(res.data.length < 1000) break;
+  }
+  return out;
 }
 
-async function loadFromGAS(){
+async function loadFromDB(){
   try{
-    const res = await fetchT(`${GAS_URL}?action=load&token=${encodeURIComponent(TOKEN)}&session=${encodeURIComponent(session)}`);
-    const data = await res.json();
-    if(data.error === "unauthorized"){ handleUnauthorized(); return false; }
-    if(data.error) throw new Error(data.error);
+    // 4つの表を同時に読む
+    const [shifts, templates, events, settings] = await Promise.all([
+      selectAll("naikin_shifts", "date,staff_id,time,locked", "date"),
+      selectAll("naikin_templates", "staff_id,days", "staff_id"),
+      selectAll("naikin_events", "id,date,time,title,members,memo,notify_at", "date"),
+      selectAll("naikin_settings", "key,value", "key"),
+    ]);
+    const data = { shifts:{}, templates:{}, events:[], globalLock:false, notifyEmail:"" };
+    shifts.forEach(r=>{
+      if(!data.shifts[r.date]) data.shifts[r.date] = {};
+      data.shifts[r.date][r.staff_id] = { time: r.time, locked: !!r.locked };
+    });
+    templates.forEach(r=>{ data.templates[r.staff_id] = (r.days||[]).map(v=>v||""); });
+    data.events = events.map(r=>({
+      id: r.id, date: r.date, time: r.time || "", title: r.title,
+      members: r.members || [], memo: r.memo || "",
+      notifyAt: r.notify_at ? String(r.notify_at).replace("T"," ").slice(0,16) : ""
+    }));
+    settings.forEach(r=>{
+      if(r.key === "globalLock") data.globalLock = r.value === "1";
+      if(r.key === "notifyEmail") data.notifyEmail = r.value || "";
+    });
     applyData(data);
     setSync("ok");
     return true;
   }catch(e){
-    console.error(e); setSync("err");
+    console.error(e);
+    if(isAuthError(e)){ handleUnauthorized(); return false; }
+    setSync("err");
     toast("データ読み込みに失敗しました😢");
     renderAll();
     return false;
