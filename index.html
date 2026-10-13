@@ -313,6 +313,28 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
 }
 .add-shift-btn:hover{background:#fff5f8;}
 .shift-note{font-size:12px;font-weight:700;color:var(--sakura-deep);margin-top:6px;min-height:1em;}
+/* ===== シフト変更希望 ===== */
+.req-count{background:var(--sakura-deep);color:#fff;border-radius:999px;font-size:11px;padding:1px 7px;margin-left:5px;}
+.req-count:empty{display:none;}
+.req-dot{font-size:10px;margin-left:2px;}
+.req-item{background:#fff;border:1.5px solid var(--line);border-left:5px solid #ffc2d1;border-radius:14px;padding:10px 12px;margin-bottom:8px;}
+.req-item.done, .req-item.skipped{opacity:.6;}
+.req-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13.5px;}
+.req-line{font-size:12.5px;font-weight:700;color:var(--ink-soft);margin-top:4px;white-space:pre-wrap;}
+.req-line b{color:var(--ink);}
+.req-st{margin-left:auto;font-size:11px;font-weight:800;border-radius:999px;padding:2px 9px;}
+.req-st.pending{background:#fff3c4;color:#9a7000;}
+.req-st.done{background:#d8f5ec;color:#1a7a5e;}
+.req-st.skipped{background:#eee;color:#888;}
+.req-urgent{background:#ffe3e3;color:#d9480f;border-radius:999px;font-size:11px;font-weight:800;padding:2px 8px;}
+.req-btns{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+.btn-sm{padding:6px 12px;font-size:12px;}
+.req-form{margin-top:14px;padding-top:14px;border-top:2px dashed var(--line);}
+.req-form-title{font-size:14px;font-weight:800;margin-bottom:10px;}
+.req-kinds{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:700;}
+.req-kinds label{display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--ink);font-size:14px;}
+.req-date{width:100%;font-family:inherit;font-size:15px;font-weight:700;padding:10px 14px;border:2px solid var(--line);border-radius:14px;color:var(--ink);background:#fffafb;}
+#reqMemo{width:100%;font-family:inherit;font-size:14px;padding:10px 14px;border:2px solid var(--line);border-radius:14px;background:#fffafb;min-height:60px;resize:vertical;}
 .echip .ems{flex:none;font-size:11px;letter-spacing:-2px;margin-right:2px;}
 .echip .ttl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .echip .bell{flex:none;font-size:9px;}
@@ -442,6 +464,7 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
     </div>
     <span id="staffBtns"></span>
     <button class="btn btn-mint" onclick="applyAllTemplates()">✨ テンプレ一括適用</button>
+    <button class="btn btn-ghost" onclick="openReqModal()">📝 シフト変更希望<span class="req-count" id="reqCount"></span></button>
   </div>
 
   <!-- 月カレンダー -->
@@ -490,6 +513,48 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('dayModalBg')">閉じる</button>
       <button class="btn btn-primary" id="dayModalAdd">＋ 予定を追加</button>
+    </div>
+  </div>
+</div>
+
+<!-- シフト変更希望モーダル -->
+<div class="modal-bg" id="reqModalBg" onclick="if(event.target===this)closeModal('reqModalBg')">
+  <div class="modal" style="max-width:480px">
+    <h3 id="reqModalTitle">📝 シフト変更希望</h3>
+    <div class="hint" id="reqMgrNote" style="margin:-6px 0 10px"></div>
+    <div id="reqList"></div>
+
+    <div class="req-form">
+      <div class="req-form-title">✏️ 変更希望を書く</div>
+      <div class="field">
+        <label>だれの</label>
+        <select id="reqStaff" onchange="onReqFormChange()"></select>
+      </div>
+      <div class="field">
+        <label>どの日</label>
+        <input type="date" id="reqDate" class="req-date" onchange="onReqFormChange()">
+        <div class="shift-note" id="reqNow"></div>
+      </div>
+      <div class="field">
+        <label>どうしたい</label>
+        <div class="req-kinds">
+          <label><input type="radio" name="reqKind" value="off" onchange="onReqFormChange()"> お休みにしたい</label>
+          <label><input type="radio" name="reqKind" value="time" onchange="onReqFormChange()"> 時間を変えたい・入りたい</label>
+          <label><input type="radio" name="reqKind" value="other" onchange="onReqFormChange()"> そのほか</label>
+        </div>
+        <div class="time-row" id="reqTimeRow" style="margin-top:8px">
+          <select id="reqStart"></select><span class="tilde">〜</span><select id="reqEnd"></select>
+        </div>
+      </div>
+      <div class="field">
+        <label>メモ（理由など・なくてもOK）</label>
+        <textarea id="reqMemo" maxlength="200" placeholder="例：通院のため／○○さんと交代OK"></textarea>
+      </div>
+      <label class="chk"><input type="checkbox" id="reqUrgent"> 🔥 急ぎ（店長に声もかけてください）</label>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('reqModalBg')">閉じる</button>
+        <button class="btn btn-primary" onclick="submitRequest()">📝 希望を出す</button>
+      </div>
     </div>
   </div>
 </div>
@@ -641,7 +706,8 @@ let state = {
   templates: {},   // { kya:["","","15-21",...] }  index=曜日(0=日)
   globalLock: false,
   events: [],      // [{id,date,time,title,members:["kya","ran"]or["all"],memo,notifyAt}]
-  notifyEmail: ""
+  notifyEmail: "",
+  requests: []     // シフト変更希望 [{id,date,staffId,curTime,wishKind,wishTime,memo,urgent,status,reply,createdBy,handledBy}]
 };
 let viewYear, viewMonth;   // 表示中の月
 let editing = null;        // {date, staffId(編集時)} モーダル用
@@ -710,7 +776,7 @@ function loadDemo(){
 }
 
 /* ================= 描画 ================= */
-function renderAll(){ renderWeek(); renderCalendar(); renderEvents(); renderGlobalLockBtn(); }
+function renderAll(){ renderWeek(); renderCalendar(); renderEvents(); renderGlobalLockBtn(); updateReqCount(); }
 
 function switchTab(t){
   currentTab = t;
@@ -805,7 +871,7 @@ function renderCalendar(){
     });
 
     html += `<div class="${cls.join(" ")}" onclick="openShiftModal('${k}')">
-      <div class="date-num">${d}<span class="dow-label">(${DOW[dow]})</span>${isHoliday?'<span class="holiday-tag">祝</span>':""}<button type="button" class="add-shift-btn" title="この日にシフトを追加" onclick="event.stopPropagation();openShiftModal('${k}')">＋</button></div>
+      <div class="date-num">${d}<span class="dow-label">(${DOW[dow]})</span>${isHoliday?'<span class="holiday-tag">祝</span>':""}${pendingReqOn(k).length?'<span class="req-dot" title="シフト変更希望あり">📝</span>':""}<button type="button" class="add-shift-btn" title="この日にシフトを追加" onclick="event.stopPropagation();openShiftModal('${k}')">＋</button></div>
       <div class="chips">${chips}</div></div>`;
   }
   grid.innerHTML = html;
@@ -844,6 +910,7 @@ function moveMonth(diff){
   if(viewMonth>11){viewMonth=0;viewYear++;}
   renderCalendar();
   renderEvents();
+  updateReqCount();
 }
 
 // "11:30-20"→690分、"1-5"(深夜25時開始)→1500分。ソート用
@@ -1217,6 +1284,130 @@ function renderEvents(){
   grid.innerHTML = html;
 }
 
+/* ============================================================
+   シフト変更希望（月ごと）
+   内勤が希望を書く → 店長が月末にまとめて確認（急ぎは声かけ）→ 店長が「反映する」でシフトを変える
+   ※ 反映・見送りのボタンは、ポータルの担当者が店長（MANAGER_NAME）のときだけ出る
+   ============================================================ */
+const MANAGER_NAME = "きゃ";
+function isManager(){ return operatorName() === MANAGER_NAME; }
+function reqMonthKey(){ return `${viewYear}-${String(viewMonth+1).padStart(2,"0")}`; }
+function reqOfMonth(){ return (state.requests||[]).filter(r=>String(r.date).slice(0,7)===reqMonthKey()); }
+function pendingReqOn(k){ return (state.requests||[]).filter(r=>r.date===k && r.status==="pending"); }
+function wishLabel(r){
+  if(r.wishKind==="off") return "お休みにしたい";
+  if(r.wishKind==="time") return `${r.wishTime} にしたい`;
+  return "そのほか（メモ参照）";
+}
+function updateReqCount(){
+  const n = reqOfMonth().filter(r=>r.status==="pending").length;
+  const el = $("reqCount");
+  if(el) el.textContent = n ? ` ${n}` : "";
+}
+
+function openReqModal(){
+  const d0 = new Date(viewYear, viewMonth, 1);
+  $("reqModalTitle").textContent = `📝 ${viewYear}年${viewMonth+1}月のシフト変更希望`;
+  // 書く欄：スタッフは今の担当者、日付はその月の中
+  $("reqStaff").innerHTML = STAFF.map(s=>`<option value="${s.id}">${s.emoji} ${esc(s.name)}</option>`).join("");
+  const me = STAFF.find(s=>s.name===operatorName());
+  $("reqStaff").value = me ? me.id : STAFF[0].id;
+  const today = key(new Date());
+  $("reqDate").value = today.slice(0,7)===reqMonthKey() ? today : key(d0);
+  $("reqStart").innerHTML = timeOptionsHtml("開始"); $("reqEnd").innerHTML = timeOptionsHtml("終了");
+  document.querySelector('input[name="reqKind"][value="off"]').checked = true;
+  $("reqMemo").value = ""; $("reqUrgent").checked = false;
+  onReqFormChange();
+  renderReqList();
+  $("reqModalBg").classList.add("show");
+}
+function onReqFormChange(){
+  const kind = document.querySelector('input[name="reqKind"]:checked').value;
+  $("reqTimeRow").style.display = kind==="time" ? "" : "none";
+  const sh = (state.shifts[$("reqDate").value]||{})[$("reqStaff").value];
+  $("reqNow").textContent = `今のシフト：${sh ? sh.time : "お休み（シフトなし）"}`;
+}
+function renderReqList(){
+  const list = reqOfMonth().slice().sort((a,b)=>
+    (a.status==="pending"?0:1)-(b.status==="pending"?0:1) || (b.urgent?1:0)-(a.urgent?1:0) || String(a.date).localeCompare(String(b.date)));
+  const mgr = isManager();
+  $("reqList").innerHTML = list.length ? list.map(r=>{
+    const s = staffOf(r.staffId) || {emoji:"", name:r.staffId, bg:"#fff", color:"#333"};
+    const d = new Date(r.date+"T00:00:00");
+    const st = r.status==="pending" ? '<span class="req-st pending">確認待ち</span>'
+             : r.status==="done" ? '<span class="req-st done">✅ 反映済み</span>' : '<span class="req-st skipped">見送り</span>';
+    let btns = "";
+    if(r.status==="pending"){
+      if(mgr) btns += `<button class="btn btn-primary btn-sm" onclick="applyRequest(${r.id})">反映する</button>
+                       <button class="btn btn-ghost btn-sm" onclick="skipRequest(${r.id})">見送り</button>`;
+      btns += `<button class="btn btn-danger btn-sm" onclick="withdrawRequest(${r.id})">取り下げ</button>`;
+    }
+    return `<div class="req-item ${r.status}" style="border-left-color:${s.color}">
+      <div class="req-top">${r.urgent?'<span class="req-urgent">🔥急ぎ</span>':''}<b>${d.getMonth()+1}/${d.getDate()}(${DOW[d.getDay()]})</b>
+        <span style="color:${s.color};font-weight:800">${s.emoji} ${esc(s.name)}</span>${st}</div>
+      <div class="req-line">今：${esc(r.curTime || "お休み")} → <b>${esc(wishLabel(r))}</b></div>
+      ${r.memo ? `<div class="req-line">📝 ${esc(r.memo)}</div>` : ""}
+      ${r.reply ? `<div class="req-line">💬 店長：${esc(r.reply)}</div>` : ""}
+      ${btns ? `<div class="req-btns">${btns}</div>` : ""}
+    </div>`;
+  }).join("") : `<div class="day-ev-empty">この月の変更希望はまだありません</div>`;
+  $("reqMgrNote").textContent = mgr ? "👑 店長として開いています（反映・見送りができます）"
+                                    : `反映・見送りは店長（${MANAGER_NAME}）がします。急ぎのときは声をかけてください`;
+}
+
+async function submitRequest(){
+  const date = $("reqDate").value, staffId = $("reqStaff").value;
+  const kind = document.querySelector('input[name="reqKind"]:checked').value;
+  if(!date){ toast("日付を選んでね📅"); return; }
+  if(date.slice(0,7)!==reqMonthKey()){ toast("この月の日付を選んでね（ほかの月は ◀▶ で移動）"); return; }
+  let wishTime = "";
+  if(kind==="time"){
+    const a = $("reqStart").value, b = $("reqEnd").value;
+    if(!a || !b){ toast("希望の開始と終了を選んでね⏰"); return; }
+    wishTime = `${a}-${b}`;
+  }
+  const memo = $("reqMemo").value.trim();
+  if(kind==="other" && !memo){ toast("「そのほか」はメモに内容を書いてね📝"); return; }
+  const sh = (state.shifts[date]||{})[staffId];
+  const ok = await gasPost({action:"addRequest", date, staffId, curTime: sh ? sh.time : "", wishKind: kind, wishTime,
+                            memo, urgent: $("reqUrgent").checked ? "1" : "0"});
+  if(!ok) return;
+  toast($("reqUrgent").checked ? "希望を出しました🔥 急ぎなので店長に声をかけてね" : "希望を出しました📝");
+  await loadFromDB();
+  openReqModal();
+}
+async function withdrawRequest(id){
+  if(!confirm("この希望を取り下げますか？")) return;
+  if(await gasPost({action:"deleteRequest", id})){ await loadFromDB(); renderReqList(); toast("取り下げました"); }
+}
+async function skipRequest(id){
+  const reply = prompt("見送りにします。ひとこと（なくてもOK）", "");
+  if(reply === null) return;
+  if(await gasPost({action:"handleRequest", id, status:"skipped", reply})){ await loadFromDB(); renderReqList(); toast("見送りにしました"); }
+}
+// 店長：希望どおりにシフトを変える（ロック中でも、いったん外して書きかえ→もう一度ロック）
+async function applyRequest(id){
+  const r = (state.requests||[]).find(x=>x.id===id);
+  if(!r) return;
+  const s = staffOf(r.staffId);
+  const sh = (state.shifts[r.date]||{})[r.staffId];
+  if(r.wishKind==="other"){
+    if(!confirm(`「そのほか」の希望です。\nシフトは自動で変えません。内容を見て、必要ならシフトを手で直してください。\n\n反映済みにしますか？`)) return;
+  }else if(!confirm(`${s.name}さんの ${r.date} を「${wishLabel(r)}」に変更します。よろしいですか？`)) return;
+  if(r.wishKind==="off" && sh){
+    if(sh.locked && !(await gasPost({action:"saveShift", date:r.date, staffId:r.staffId, time:sh.time, locked:"0"}))) return;
+    if(!(await gasPost({action:"deleteShift", date:r.date, staffId:r.staffId}))) return;
+  }
+  if(r.wishKind==="time"){
+    if(sh && sh.locked && sh.time!==r.wishTime &&
+       !(await gasPost({action:"saveShift", date:r.date, staffId:r.staffId, time:r.wishTime, locked:"0"}))) return;
+    if(!(await gasPost({action:"saveShift", date:r.date, staffId:r.staffId, time:r.wishTime, locked:"1"}))) return;
+  }
+  if(await gasPost({action:"handleRequest", id, status:"done", reply:""})){
+    await loadFromDB(); renderReqList(); toast("反映しました✨");
+  }
+}
+
 /* ---- その日の予定を全部見る（マスの空いているところを押したとき） ---- */
 function openDayEvents(k){
   const list = state.events.filter(e=>e.date===k).sort((a,b)=>evSortKey(a)-evSortKey(b));
@@ -1474,6 +1665,21 @@ async function dbWrite(p){
     case "deleteEvent":
       throwIf(await sb.from("naikin_events").delete().eq("id", p.id));
       return p.id;
+    case "addRequest":
+      throwIf(await sb.from("naikin_requests").insert({
+        date: p.date, staff_id: p.staffId, cur_time: String(p.curTime||"").slice(0,20),
+        wish_kind: p.wishKind, wish_time: p.wishTime || "", memo: String(p.memo||"").slice(0,200),
+        urgent: p.urgent === "1", created_by: by
+      }));
+      return `${p.date} ${p.staffId} ${p.wishKind} ${p.wishTime||""}`;
+    case "deleteRequest":
+      throwIf(await sb.from("naikin_requests").delete().eq("id", p.id));
+      return String(p.id);
+    case "handleRequest":
+      throwIf(await sb.from("naikin_requests").update({
+        status: p.status, reply: String(p.reply||"").slice(0,200), handled_at: nowIso(), handled_by: by
+      }).eq("id", p.id));
+      return `${p.id} ${p.status}`;
     case "logout":
       return null;
     default:
@@ -1573,12 +1779,19 @@ async function selectAll(table, columns, orderCol){
 async function loadFromDB(){
   try{
     // 4つの表を同時に読む
-    const [shifts, templates, events, settings] = await Promise.all([
+    const [shifts, templates, events, settings, requests] = await Promise.all([
       selectAll("naikin_shifts", "date,staff_id,time,locked", "date"),
       selectAll("naikin_templates", "staff_id,days", "staff_id"),
       selectAll("naikin_events", "id,date,time,title,members,memo,notify_at", "date"),
       selectAll("naikin_settings", "key,value", "key"),
+      // シフト変更希望（表がまだ無いときも、ほかは開けるようにする）
+      selectAll("naikin_requests", "*", "date").catch(e=>{ if(isAuthError(e)) throw e; return []; }),
     ]);
+    state.requests = requests.map(r=>({
+      id: r.id, date: r.date, staffId: r.staff_id, curTime: r.cur_time || "", wishKind: r.wish_kind,
+      wishTime: r.wish_time || "", memo: r.memo || "", urgent: !!r.urgent, status: r.status,
+      reply: r.reply || "", createdBy: r.created_by || "", handledBy: r.handled_by || ""
+    }));
     const data = { shifts:{}, templates:{}, events:[], globalLock:false, notifyEmail:"" };
     shifts.forEach(r=>{
       if(!data.shifts[r.date]) data.shifts[r.date] = {};
