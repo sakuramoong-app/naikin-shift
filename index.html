@@ -547,8 +547,8 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
         </div>
       </div>
       <div class="field">
-        <label>メモ（理由など・なくてもOK）</label>
-        <textarea id="reqMemo" maxlength="200" placeholder="例：通院のため／○○さんと交代OK"></textarea>
+        <label>理由（必須）</label>
+        <textarea id="reqMemo" maxlength="200" placeholder="例：通院のため（○○さんと交代OKなど、あれば）"></textarea>
       </div>
       <label class="chk"><input type="checkbox" id="reqUrgent"> 🔥 急ぎ（店長に声もかけてください）</label>
       <div class="modal-actions">
@@ -1297,7 +1297,7 @@ function pendingReqOn(k){ return (state.requests||[]).filter(r=>r.date===k && r.
 function wishLabel(r){
   if(r.wishKind==="off") return "お休みにしたい";
   if(r.wishKind==="time") return `${r.wishTime} にしたい`;
-  return "そのほか（メモ参照）";
+  return "そのほか（理由を見てください）";
 }
 function updateReqCount(){
   const n = reqOfMonth().filter(r=>r.status==="pending").length;
@@ -1346,7 +1346,7 @@ function renderReqList(){
       <div class="req-top">${r.urgent?'<span class="req-urgent">🔥急ぎ</span>':''}<b>${d.getMonth()+1}/${d.getDate()}(${DOW[d.getDay()]})</b>
         <span style="color:${s.color};font-weight:800">${s.emoji} ${esc(s.name)}</span>${st}</div>
       <div class="req-line">今：${esc(r.curTime || "お休み")} → <b>${esc(wishLabel(r))}</b></div>
-      ${r.memo ? `<div class="req-line">📝 ${esc(r.memo)}</div>` : ""}
+      ${r.memo ? `<div class="req-line">📝 理由：${esc(r.memo)}</div>` : ""}
       ${r.reply ? `<div class="req-line">💬 店長：${esc(r.reply)}</div>` : ""}
       ${btns ? `<div class="req-btns">${btns}</div>` : ""}
     </div>`;
@@ -1367,7 +1367,7 @@ async function submitRequest(){
     wishTime = `${a}-${b}`;
   }
   const memo = $("reqMemo").value.trim();
-  if(kind==="other" && !memo){ toast("「そのほか」はメモに内容を書いてね📝"); return; }
+  if(!memo){ toast("理由を書いてね📝（必須です）"); return; }
   const sh = (state.shifts[date]||{})[staffId];
   const ok = await gasPost({action:"addRequest", date, staffId, curTime: sh ? sh.time : "", wishKind: kind, wishTime,
                             memo, urgent: $("reqUrgent").checked ? "1" : "0"});
