@@ -1139,6 +1139,7 @@ function closeModal(id){ $(id).classList.remove("show"); }
    （同じ決まりを Supabase 側の鍵（RLS）でも確かめている）。 */
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const STAFF_EMAIL = "naikin@sakuramoong.internal";
+const staffOk = s => { try{ if(String(s.user.email || '').toLowerCase() === STAFF_EMAIL) return true; let p = String(s.access_token || '').split('.')[1].replace(/-/g, '+').replace(/_/g, '/'); while(p.length % 4) p += '='; return ['staff', 'manager', 'owner'].includes(JSON.parse(decodeURIComponent(escape(atob(p)))).staff_role); }catch(e){ return false; } };   // 共通アカウント、または内勤の一覧のGoogleアカウント（SQL 192）
 const SESSION_HOURS = 20;
 let authSession = null;
 
@@ -1158,7 +1159,7 @@ function sessionExpiresAt(s){
   return at ? (at + SESSION_HOURS*3600) * 1000 : 0;
 }
 function isStaffSession(s){
-  return !!s && s.user && s.user.email === STAFF_EMAIL && Date.now() < sessionExpiresAt(s);
+  return !!s && s.user && staffOk(s) && Date.now() < sessionExpiresAt(s);
 }
 // 操作した内勤の名前（ポータルで選んだ担当者）
 function operatorName(){ try{ return localStorage.getItem("currentOperator") || ""; }catch(e){ return ""; } }
