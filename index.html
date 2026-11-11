@@ -684,6 +684,7 @@ const STAFF = [
   {id:"kami", name:"かみ", emoji:"🌙", color:"#3b5bdb", bg:"#e6ebfd", excBg:"linear-gradient(135deg,#7b96f5,#3b5bdb)"},
   {id:"waka", name:"わか", emoji:"🦉", color:"#8a6fd1", bg:"#f0ebfd", excBg:"linear-gradient(135deg,#b8a3f0,#8a6fd1)"},
 ];
+if (window.StaffIcons) StaffIcons.patch(STAFF);   // 👤 記録簿の「自分のアイコン」で変えたもの（全アプリ共通）
 const DOW = ["日","月","火","水","木","金","土"];
 const TIME_PRESETS = ["11:30-17","11:30-19","11:30-20","12-21","13-21","14-21","15-21","16-21","16-22","19-5"];
 // 営業時間: 12時〜翌朝5時(開店準備の11:30も選択可)。25時以降は1〜5表記。
