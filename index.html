@@ -685,6 +685,7 @@ const STAFF = [
   {id:"waka", name:"わか", emoji:"🦉", color:"#8a6fd1", bg:"#f0ebfd", excBg:"linear-gradient(135deg,#b8a3f0,#8a6fd1)"},
 ];
 if (window.StaffIcons) StaffIcons.patch(STAFF);   // 👤 記録簿の「自分のアイコン」で変えたもの（全アプリ共通）
+const siEm = o => (window.StaffIcons && StaffIcons.html) ? StaffIcons.html(o) : ((o && o.emoji) || "");   // 👤 Googleの写真にした人は写真（なければ絵文字）
 const DOW = ["日","月","火","水","木","金","土"];
 const TIME_PRESETS = ["11:30-17","11:30-19","11:30-20","12-21","13-21","14-21","15-21","16-21","16-22","19-5"];
 // 営業時間: 12時〜翌朝5時(開店準備の11:30も選択可)。25時以降は1〜5表記。
@@ -866,7 +867,7 @@ function renderCalendar(){
         onclick="onChipClick(event,'${k}','${s.id}')"
         onpointerdown="lpStart(event,'${k}','${s.id}')" onpointerup="lpEnd()"
         onpointerleave="lpEnd()" onpointercancel="lpEnd()" oncontextmenu="return false">
-        <span class="em">${s.emoji}</span><span class="nm">${esc(s.name)}</span><span class="tm">${esc(sh.time)}</span>
+        <span class="em">${siEm(s)}</span><span class="nm">${esc(s.name)}</span><span class="tm">${esc(sh.time)}</span>
         <span class="lock ${sh.locked?"":"open"}" title="${state.globalLock?"全体ロック中":sh.locked?"ロック解除":"ロックする"}"
           onclick="onLockClick(event,'${k}','${s.id}')">${locked?"🔒":"🔓"}</span>
       </div>`;
@@ -887,10 +888,10 @@ function renderGlobalLockBtn(){
 
 function buildStaffButtons(){
   $("staffBtns").innerHTML = STAFF.map(s=>
-    `<button class="staff-btn" style="border-color:${s.color};color:${s.color}" onclick="openTmplModal('${s.id}')">${s.emoji} ${esc(s.name)}</button>`
+    `<button class="staff-btn" style="border-color:${s.color};color:${s.color}" onclick="openTmplModal('${s.id}')">${siEm(s)} ${esc(s.name)}</button>`
   ).join(" ");
   $("staffLegend").innerHTML = STAFF.map(s=>
-    `<span style="color:${s.color}">${s.emoji}${esc(s.name)}</span>`
+    `<span style="color:${s.color}">${siEm(s)}${esc(s.name)}</span>`
   ).join("");
 }
 function buildStaffSelect(){
@@ -1234,7 +1235,7 @@ function evStyle(members){
 }
 function evEmojis(members){
   if(members.includes("all")) return ALL_MEMBER.emoji;
-  return members.map(id=>staffOf(id)?.emoji||"").join("");
+  return members.map(id=>staffOf(id) ? siEm(staffOf(id)) : "").join("");
 }
 // 予定ソート: 時間なし→先頭、あとは時刻順
 function evSortKey(ev){
@@ -1347,7 +1348,7 @@ function renderReqList(){
     }
     return `<div class="req-item ${r.status}" style="border-left-color:${s.color}">
       <div class="req-top">${r.urgent?'<span class="req-urgent">🔥急ぎ</span>':''}<b>${d.getMonth()+1}/${d.getDate()}(${DOW[d.getDay()]})</b>
-        <span style="color:${s.color};font-weight:800">${s.emoji} ${esc(s.name)}</span>${st}</div>
+        <span style="color:${s.color};font-weight:800">${siEm(s)} ${esc(s.name)}</span>${st}</div>
       <div class="req-line">今：${esc(r.curTime || "お休み")} → <b>${esc(wishLabel(r))}</b></div>
       ${r.memo ? `<div class="req-line">📝 理由：${esc(r.memo)}</div>` : ""}
       ${r.reply ? `<div class="req-line">💬 店長：${esc(r.reply)}</div>` : ""}
@@ -1434,7 +1435,7 @@ function buildEventUI(){
   const members = [ALL_MEMBER, ...STAFF];
   $("evMembers").innerHTML = members.map(m=>
     `<button type="button" class="mem-btn" id="mem_${m.id}" style="border-color:${m.color};color:${m.color}"
-      onclick="toggleMember('${m.id}')">${m.emoji} ${esc(m.name)}</button>`
+      onclick="toggleMember('${m.id}')">${siEm(m)} ${esc(m.name)}</button>`
   ).join("");
   // 時間(終日〜23:30、30分刻み)
   let opts = `<option value="">終日(時間なし)</option>`;
@@ -1446,7 +1447,7 @@ function buildEventUI(){
   $("evNotifyTime").innerHTML = nopts;
   // 予定タブの凡例
   $("eventLegend").innerHTML = [ALL_MEMBER, ...STAFF].map(m=>
-    `<span style="color:${m.color}">${m.emoji}${esc(m.name)}</span>`
+    `<span style="color:${m.color}">${siEm(m)}${esc(m.name)}</span>`
   ).join("");
 }
 
