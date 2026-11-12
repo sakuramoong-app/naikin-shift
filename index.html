@@ -548,6 +548,14 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
         </div>
       </div>
       <div class="field">
+        <label>代わりに出てもらう人（決まっていれば）</label>
+        <select id="reqSub" onchange="onReqFormChange()"></select>
+        <div class="time-row" id="reqSubTimeRow" style="margin-top:8px">
+          <select id="reqSubStart"></select><span class="tilde">〜</span><select id="reqSubEnd"></select>
+        </div>
+        <div class="shift-note" id="reqSubNow"></div>
+      </div>
+      <div class="field">
         <label>理由（必須）</label>
         <textarea id="reqMemo" maxlength="200" placeholder="例：通院のため（○○さんと交代OKなど、あれば）"></textarea>
       </div>
@@ -1319,6 +1327,7 @@ function openReqModal(){
   const today = key(new Date());
   $("reqDate").value = today.slice(0,7)===reqMonthKey() ? today : key(d0);
   $("reqStart").innerHTML = timeOptionsHtml("開始"); $("reqEnd").innerHTML = timeOptionsHtml("終了");
+  $("reqSubStart").innerHTML = timeOptionsHtml("開始"); $("reqSubEnd").innerHTML = timeOptionsHtml("終了");
   document.querySelector('input[name="reqKind"][value="off"]').checked = true;
   $("reqMemo").value = ""; $("reqUrgent").checked = false;
   onReqFormChange();
@@ -1330,6 +1339,13 @@ function onReqFormChange(){
   $("reqTimeRow").style.display = kind==="time" ? "" : "none";
   const sh = (state.shifts[$("reqDate").value]||{})[$("reqStaff").value];
   $("reqNow").textContent = `今のシフト：${sh ? sh.time : "お休み（シフトなし）"}`;
+  // 🔁 代わりに出てもらう人：本人いがいの内勤から。選んだら時間も（2026/11/12）
+  const subSel = $("reqSub"), cur = subSel.value;
+  subSel.innerHTML = `<option value="">（いない・まだ決まっていない）</option>` + STAFF.filter(s=>s.id!==$("reqStaff").value).map(s=>`<option value="${s.id}">${s.emoji} ${esc(s.name)}</option>`).join("");
+  subSel.value = [...subSel.options].some(o=>o.value===cur) ? cur : "";
+  $("reqSubTimeRow").style.display = subSel.value ? "" : "none";
+  const ssh = subSel.value ? (state.shifts[$("reqDate").value]||{})[subSel.value] : null;
+  $("reqSubNow").textContent = subSel.value ? `${(staffOf(subSel.value)||{}).name}さんの今のシフト：${ssh ? ssh.time : "お休み（シフトなし）"} → 下の時間にします` : "";
 }
 function renderReqList(){
   const list = reqOfMonth().slice().sort((a,b)=>
@@ -1350,6 +1366,7 @@ function renderReqList(){
       <div class="req-top">${r.urgent?'<span class="req-urgent">🔥急ぎ</span>':''}<b>${d.getMonth()+1}/${d.getDate()}(${DOW[d.getDay()]})</b>
         <span style="color:${s.color};font-weight:800">${siEm(s)} ${esc(s.name)}</span>${st}</div>
       <div class="req-line">今：${esc(r.curTime || "お休み")} → <b>${esc(wishLabel(r))}</b></div>
+      ${r.subStaffId ? (() => { const ss = staffOf(r.subStaffId) || { name: r.subStaffId, color: "#333" }; return `<div class="req-line">🔁 代わり：<b style="color:${ss.color}">${siEm(ss)} ${esc(ss.name)}</b> ${esc(r.subTime)}</div>`; })() : ""}
       ${r.memo ? `<div class="req-line">📝 理由：${esc(r.memo)}</div>` : ""}
       ${r.reply ? `<div class="req-line">💬 店長：${esc(r.reply)}</div>` : ""}
       ${btns ? `<div class="req-btns">${btns}</div>` : ""}
@@ -1372,9 +1389,12 @@ async function submitRequest(){
   }
   const memo = $("reqMemo").value.trim();
   if(!memo){ toast("理由を書いてね📝（必須です）"); return; }
+  // 🔁 代わりに出てもらう人（2026/11/12）
+  const subStaffId = $("reqSub").value; let subTime = "";
+  if(subStaffId){ const a = $("reqSubStart").value, b = $("reqSubEnd").value; if(!a || !b){ toast("代わりの人の開始と終了を選んでね⏰"); return; } subTime = `${a}-${b}`; }
   const sh = (state.shifts[date]||{})[staffId];
   const ok = await gasPost({action:"addRequest", date, staffId, curTime: sh ? sh.time : "", wishKind: kind, wishTime,
-                            memo, urgent: $("reqUrgent").checked ? "1" : "0"});
+                            memo, urgent: $("reqUrgent").checked ? "1" : "0", subStaffId, subTime});
   if(!ok) return;
   toast($("reqUrgent").checked ? "希望を出しました🔥 急ぎなので店長に声をかけてね" : "希望を出しました📝");
   await loadFromDB();
@@ -1397,7 +1417,7 @@ async function applyRequest(id){
   const sh = (state.shifts[r.date]||{})[r.staffId];
   if(r.wishKind==="other"){
     if(!confirm(`「そのほか」の希望です。\nシフトは自動で変えません。内容を見て、必要ならシフトを手で直してください。\n\n反映済みにしますか？`)) return;
-  }else if(!confirm(`${s.name}さんの ${r.date} を「${wishLabel(r)}」に変更します。よろしいですか？`)) return;
+  }else if(!confirm(`${s.name}さんの ${r.date} を「${wishLabel(r)}」に変更します。` + (r.subStaffId ? `\n代わりに ${(staffOf(r.subStaffId) || {}).name || r.subStaffId}さんを ${r.subTime} にします。` : "") + `\nよろしいですか？`)) return;
   if(r.wishKind==="off" && sh){
     if(sh.locked && !(await gasPost({action:"saveShift", date:r.date, staffId:r.staffId, time:sh.time, locked:"0"}))) return;
     if(!(await gasPost({action:"deleteShift", date:r.date, staffId:r.staffId}))) return;
@@ -1406,6 +1426,13 @@ async function applyRequest(id){
     if(sh && sh.locked && sh.time!==r.wishTime &&
        !(await gasPost({action:"saveShift", date:r.date, staffId:r.staffId, time:r.wishTime, locked:"0"}))) return;
     if(!(await gasPost({action:"saveShift", date:r.date, staffId:r.staffId, time:r.wishTime, locked:"1"}))) return;
+  }
+  // 🔁 代わりに出てもらう人も、その時間にする（2026/11/12 店長）
+  if(r.subStaffId && r.subTime && r.wishKind !== "other"){
+    const ssh = (state.shifts[r.date]||{})[r.subStaffId];
+    if(ssh && ssh.locked && ssh.time!==r.subTime &&
+       !(await gasPost({action:"saveShift", date:r.date, staffId:r.subStaffId, time:r.subTime, locked:"0"}))) return;
+    if(!(await gasPost({action:"saveShift", date:r.date, staffId:r.subStaffId, time:r.subTime, locked:"1"}))) return;
   }
   if(await gasPost({action:"handleRequest", id, status:"done", reply:""})){
     await loadFromDB(); renderReqList(); toast("反映しました✨");
@@ -1673,7 +1700,8 @@ async function dbWrite(p){
       throwIf(await sb.from("naikin_requests").insert({
         date: p.date, staff_id: p.staffId, cur_time: String(p.curTime||"").slice(0,20),
         wish_kind: p.wishKind, wish_time: p.wishTime || "", memo: String(p.memo||"").slice(0,200),
-        urgent: p.urgent === "1", created_by: by
+        urgent: p.urgent === "1", created_by: by,
+        ...(p.subStaffId ? { sub_staff_id: String(p.subStaffId).slice(0,20), sub_time: String(p.subTime||"").slice(0,20) } : {})   // 🔁 代わりに出てもらう人（SQL 242）
       }));
       return `${p.date} ${p.staffId} ${p.wishKind} ${p.wishTime||""}`;
     case "deleteRequest":
@@ -1794,7 +1822,8 @@ async function loadFromDB(){
     state.requests = requests.map(r=>({
       id: r.id, date: r.date, staffId: r.staff_id, curTime: r.cur_time || "", wishKind: r.wish_kind,
       wishTime: r.wish_time || "", memo: r.memo || "", urgent: !!r.urgent, status: r.status,
-      reply: r.reply || "", createdBy: r.created_by || "", handledBy: r.handled_by || ""
+      reply: r.reply || "", createdBy: r.created_by || "", handledBy: r.handled_by || "",
+      subStaffId: r.sub_staff_id || "", subTime: r.sub_time || ""
     }));
     const data = { shifts:{}, templates:{}, events:[], globalLock:false, notifyEmail:"" };
     shifts.forEach(r=>{
