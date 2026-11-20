@@ -183,10 +183,10 @@ table.week tr:last-child td:last-child{border-radius:0 0 12px 0;}
 }
 /* ロック解除中 = 黄色い枠(スマホでも状態が分かる) */
 .chip.unlocked{outline:2.5px solid #ffd43b;outline-offset:1px;}
-.chip .em{display:none;}
-.chip .nm{flex:none;}
+.chip .em{display:inline-flex;align-items:center;}   /* 名前のかわりにアイコン（2026/11/21 店長） */
+.chip .nm{display:none;}
 .chip .tm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.staff-legend{display:none;flex-wrap:wrap;gap:8px;font-size:12px;font-weight:800;margin-bottom:8px;padding:0 2px;}
+.staff-legend{display:flex;flex-wrap:wrap;gap:8px;font-size:12px;font-weight:800;margin-bottom:8px;padding:0 2px;}
 .chip .lock{
   font-size:12px;cursor:pointer;flex:none;border-radius:6px;padding:0 2px;
   transition:transform .12s;filter:grayscale(0);
@@ -819,7 +819,7 @@ function renderWeek(){
   });
   html += "</tr></thead><tbody>";
   STAFF.forEach(s=>{
-    html += `<tr><td class="name" style="color:${s.color}">${esc(s.name)}</td>`;
+    html += `<tr><td class="name" style="color:#222">${esc(s.name)}</td>`;
     days.forEach(d=>{
       const k = key(d);
       const sh = state.shifts[k]?.[s.id];
@@ -827,8 +827,8 @@ function renderWeek(){
       if(sh){
         const exc = isException(s.id,k,sh.time);
         const style = exc
-          ? `background:${s.excBg};color:#fff;`
-          : `background:${s.bg};color:${s.color};`;
+          ? `background:${s.excBg};color:#222;`
+          : `background:${s.bg};color:#222;`;
         html += `<td class="${tdCls}"><span class="week-chip ${exc?"exc":""}" style="${style}">${esc(sh.time)}</span></td>`;
       }else{
         html += `<td class="${tdCls}"><span class="dash">-</span></td>`;
@@ -869,8 +869,8 @@ function renderCalendar(){
     entries.forEach(({s,sh})=>{
       const exc = isException(s.id,k,sh.time);
       const locked = state.globalLock || sh.locked;
-      const style = exc ? `background:${s.excBg};color:#fff;border-color:rgba(255,255,255,.5);`
-                        : `background:${s.bg};color:${s.color};`;
+      const style = exc ? `background:${s.excBg};color:#222;border-color:rgba(255,255,255,.5);`   // 文字は黒でそろえる（2026/11/21 店長）
+                        : `background:${s.bg};color:#222;`;
       chips += `<div class="chip ${exc?"exc":""} ${!locked?"unlocked":""}" style="${style}"
         onclick="onChipClick(event,'${k}','${s.id}')"
         onpointerdown="lpStart(event,'${k}','${s.id}')" onpointerup="lpEnd()"
@@ -896,10 +896,10 @@ function renderGlobalLockBtn(){
 
 function buildStaffButtons(){
   $("staffBtns").innerHTML = STAFF.map(s=>
-    `<button class="staff-btn" style="border-color:${s.color};color:${s.color}" onclick="openTmplModal('${s.id}')">${siEm(s)} ${esc(s.name)}</button>`
+    `<button class="staff-btn" style="border-color:${s.color};color:#222" onclick="openTmplModal('${s.id}')">${siEm(s)} ${esc(s.name)}</button>`
   ).join(" ");
   $("staffLegend").innerHTML = STAFF.map(s=>
-    `<span style="color:${s.color}">${siEm(s)}${esc(s.name)}</span>`
+    `<span style="color:#222">${siEm(s)}${esc(s.name)}</span>`
   ).join("");
 }
 function buildStaffSelect(){
@@ -1055,7 +1055,7 @@ function toggleGlobalLock(){
 function openTmplModal(sid){
   tmplEditingStaff = sid;
   const s = staffOf(sid);
-  $("tmplModalTitle").innerHTML = `📋 <span style="color:${s.color}">${esc(s.name)}</span> のテンプレート`;
+  $("tmplModalTitle").innerHTML = `📋 <span style="color:#222">${esc(s.name)}</span> のテンプレート`;
   const tpl = state.templates[sid] || ["","","","","","",""];
   $("tmplRows").innerHTML = DOW.map((d,i)=>{
     const [a,b] = splitTime(tpl[i]);
@@ -1234,10 +1234,10 @@ function startExpiryWatch(){
 
 /* ================= 予定タブ ================= */
 function evStyle(members){
-  if(members.includes("all")) return `background:${ALL_MEMBER.bg};color:${ALL_MEMBER.color};`;
+  if(members.includes("all")) return `background:${ALL_MEMBER.bg};color:#222;`;
   if(members.length===1){
     const s = staffOf(members[0]);
-    return s ? `background:${s.bg};color:${s.color};` : "";
+    return s ? `background:${s.bg};color:#222;` : "";
   }
   return `background:${MULTI_STYLE.bg};color:${MULTI_STYLE.color};`;
 }
@@ -1364,7 +1364,7 @@ function renderReqList(){
     }
     return `<div class="req-item ${r.status}" style="border-left-color:${s.color}">
       <div class="req-top">${r.urgent?'<span class="req-urgent">🔥急ぎ</span>':''}<b>${d.getMonth()+1}/${d.getDate()}(${DOW[d.getDay()]})</b>
-        <span style="color:${s.color};font-weight:800">${siEm(s)} ${esc(s.name)}</span>${st}</div>
+        <span style="color:#222;font-weight:800">${siEm(s)} ${esc(s.name)}</span>${st}</div>
       <div class="req-line">今：${esc(r.curTime || "お休み")} → <b>${esc(wishLabel(r))}</b></div>
       ${r.subStaffId ? (() => { const ss = staffOf(r.subStaffId) || { name: r.subStaffId, color: "#333" }; return `<div class="req-line">🔁 代わり：<b style="color:${ss.color}">${siEm(ss)} ${esc(ss.name)}</b> ${esc(r.subTime)}</div>`; })() : ""}
       ${r.memo ? `<div class="req-line">📝 理由：${esc(r.memo)}</div>` : ""}
